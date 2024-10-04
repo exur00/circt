@@ -87,4 +87,16 @@ def FooWires : Pass<"hw-foo-wires", "hw::HWModuleOp"> {
   let constructor = "circt::hw::createFooWiresPass()";
 }
 
+/**
+ * My first pass
+ */
+def MyPass : Pass<"hw-my-pass", "hw::HWModuleOp"> {
+  let summary = "Change all wires' name to myfoo_<n>.";
+  let description = [{
+    Very basic pass that numbers all of the wires in a given module.
+    The wires' names are then all converte to myfoo_<that number>.
+  }];
+  let constructor = "circt::hw::createMyPass()";
+}
+
 #endif // CIRCT_DIALECT_HW_PASSES_TD
