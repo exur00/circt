@@ -347,6 +347,34 @@ static LogicalResult applyAttributeAnnotation(const AnnoPathValue &target,
   return success();
 }
 
+static LogicalResult applyIirAnnotation(const AnnoPathValue &target,
+                                              DictionaryAttr anno,
+                                              ApplyState &state) {
+  auto *op = target.ref.getOp();
+
+  auto error = [&]() {
+    auto diag = mlir::emitError(op->getLoc());
+    diag << anno.getAs<StringAttr>("class").getValue() << " ";
+    return diag;
+  };
+
+  if (!isa<OpAnnoTarget>(target.ref))
+    return error()
+           << "must target an operation. Currently ports are not supported";
+
+  if (!target.isLocal())
+    return error() << "must be local";
+
+  if (!isa<FModuleOp, WireOp, NodeOp, RegOp, RegResetOp>(op))
+    return error()
+           << "unhandled operation. The target must be a module, wire, node or "
+              "register";
+
+  
+  sv::addSVAttributes(op, {svAttr}); //TODO: replace by hw attribute
+  return success();
+}
+
 /// Update a memory op with attributes about memory file loading.
 template <bool isInline>
 static LogicalResult applyLoadMemoryAnno(const AnnoPathValue &target,
@@ -597,7 +625,8 @@ static llvm::StringMap<AnnoRecord> annotationRecords{{
      {stdResolve, applyLoadMemoryAnno<true>}},
     {wiringSinkAnnoClass, {stdResolve, applyWiring}},
     {wiringSourceAnnoClass, {stdResolve, applyWiring}},
-    {attributeAnnoClass, {stdResolve, applyAttributeAnnotation}}}};
+    {attributeAnnoClass, {stdResolve, applyAttributeAnnotation}},
+    {iirAnnoClass, {stdResolve, applyIirAnnotation}}}};
 
 LogicalResult
 registerAnnotationRecord(StringRef annoClass, AnnoRecord annoRecord,

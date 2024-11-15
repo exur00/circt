@@ -3025,6 +3025,10 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
   // Move SV attributes.
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
+  
+  // Add iirAttribute
+  if (auto iirAttr = op->getAttr("hw.iirAttr"))
+    reg->setAttr("hw.iirAttr", iirAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
