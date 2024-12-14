@@ -371,7 +371,8 @@ static LogicalResult applyIirAnnotation(const AnnoPathValue &target,
               "register";
 
   
-  sv::addSVAttributes(op, {svAttr}); //TODO: replace by hw attribute
+  return error() << "reached applyIirAnno"; // TODO remove, just a test
+  //hw:: add some hardware attribute saying it's an iir
   return success();
 }
 

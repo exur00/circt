@@ -3026,9 +3026,9 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
   
-  // Add iirAttribute
-  if (auto iirAttr = op->getAttr("hw.iirAttr"))
-    reg->setAttr("hw.iirAttr", iirAttr);
+  // Add iirAnnotation
+ if (auto iirAttr = op->getAttr("hw.iirAnnotation"))
+    reg->setAttr("hw.iirAnnotation", iirAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
