@@ -36,5 +36,6 @@ add_subdirectory(Sim)
 add_subdirectory(SMT)
 add_subdirectory(SSP)
 add_subdirectory(SV)
+##add_subdirectory(Synth) TODO: uncomment
 add_subdirectory(SystemC)
 add_subdirectory(Verif)

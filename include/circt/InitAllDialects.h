@@ -42,6 +42,7 @@
 #include "circt/Dialect/SV/SVDialect.h"
 #include "circt/Dialect/Seq/SeqDialect.h"
 #include "circt/Dialect/Sim/SimDialect.h"
+//#include "circt/Dialect/Synth/IR/SynthDialect.h" //TODO: uncomment
 #include "circt/Dialect/SystemC/SystemCDialect.h"
 #include "circt/Dialect/Verif/VerifDialect.h"
 #include "mlir/IR/Dialect.h"
@@ -80,6 +81,7 @@ inline void registerAllDialects(mlir::DialectRegistry &registry) {
     smt::SMTDialect,
     ssp::SSPDialect,
     sv::SVDialect,
+    synth::SynthDialect,
     systemc::SystemCDialect,
     verif::VerifDialect
   >();
