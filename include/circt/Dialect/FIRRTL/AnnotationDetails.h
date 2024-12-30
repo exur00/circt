@@ -206,7 +206,7 @@ constexpr const char *wiringSourceAnnoClass =
 constexpr const char *attributeAnnoClass = "firrtl.AttributeAnnotation";
 
 // IIR annotations.
-constexpr const char *iirAnnoClass = "hw.iirAnnotation";
+constexpr const char *iirAnnoClass = "synth.iirAnnotation";
 
 } // namespace firrtl
 } // namespace circt

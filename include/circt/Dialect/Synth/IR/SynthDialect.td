@@ -24,10 +24,14 @@ def SynthDialect : Dialect {
   }];
 
   let useDefaultTypePrinterParser = 1;
+  let useDefaultAttributePrinterParser = 1;
   let cppNamespace = "::circt::synth";
 
   let extraClassDeclaration = [{
+    /// Register all SV types.
     void registerTypes();
+    /// Register all attributes.
+    void registerAttributes();
   }];
 }
 
