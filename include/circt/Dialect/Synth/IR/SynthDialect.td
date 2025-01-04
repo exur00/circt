@@ -28,6 +28,7 @@ def SynthDialect : Dialect {
 
   let extraClassDeclaration = [{
     void registerTypes();
+    void registerAttributes();
   }];
 }
 

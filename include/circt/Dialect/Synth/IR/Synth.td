@@ -16,8 +16,13 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/OpAsmInterface.td"
 
+include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/SymbolInterfaces.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
+
 include "circt/Dialect/Synth/IR/SynthDialect.td"
 include "circt/Dialect/Synth/IR/SynthTypes.td"
 include "circt/Dialect/Synth/IR/SynthOps.td"
+include "circt/Dialect/Synth/IR/SynthAttributes.td"
 
 #endif // CIRCT_DIALECT_SYNTH_IR_SYNTH_TD

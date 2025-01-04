@@ -2,12 +2,17 @@ add_circt_dialect_library(CIRCTSynthDialect
   SynthDialect.cpp
   SynthOps.cpp
   SynthTypes.cpp
+  SynthAttributes.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${CIRCT_MAIN_INCLUDE_DIR}/circt/Dialect/Synth/IR
 
   DEPENDS
   MLIRSynthIncGen
+  MLIRSynthAttributesIncGen
+
+  LINK_COMPONENTS
+  Support
 
   LINK_LIBS PUBLIC
   MLIRIR
@@ -15,3 +20,5 @@ add_circt_dialect_library(CIRCTSynthDialect
   MLIRInferTypeOpInterface
   MLIRSideEffectInterfaces
 )
+
+add_dependencies(circt-headers MLIRSynthIncGen)

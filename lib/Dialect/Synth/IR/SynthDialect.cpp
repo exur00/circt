@@ -27,11 +27,12 @@ using namespace synth;
 void SynthDialect::initialize() {
   registerTypes();
   // Register operations.
-  //registerAttributes(); TODO: probably this also needed?
+  registerAttributes(); //TODO: probably this also needed?
   addOperations<
 #define GET_OP_LIST
 #include "circt/Dialect/Synth/IR/Synth.cpp.inc"
       >();
 }
 
+#define GET_ATTRDEF_CLASSES
 #include "circt/Dialect/Synth/IR/SynthDialect.cpp.inc"
