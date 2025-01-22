@@ -1,8 +1,6 @@
 add_circt_dialect(Synth synth)
-
-set(LLVM_TARGET_DEFINITIONS Synth.td)
-
 add_circt_dialect_doc(Synth synth)
+add_dependencies(circt-headers MLIRSynthIncGen)
 
 set(LLVM_TARGET_DEFINITIONS Synth.td)
 mlir_tablegen(SynthEnums.h.inc -gen-enum-decls)
