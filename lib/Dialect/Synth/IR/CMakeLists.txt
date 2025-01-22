@@ -1,4 +1,4 @@
-add_circt_dialect_library(CIRCTSynthDialect
+add_circt_dialect_library(CIRCTSynth
   SynthDialect.cpp
   SynthOps.cpp
   SynthTypes.cpp
@@ -9,6 +9,7 @@ add_circt_dialect_library(CIRCTSynthDialect
 
   DEPENDS
   MLIRSynthIncGen
+  MLIRSynthEnumsIncGen
   MLIRSynthAttributesIncGen
 
   LINK_COMPONENTS

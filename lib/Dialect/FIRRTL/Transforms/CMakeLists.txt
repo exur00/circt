@@ -80,6 +80,7 @@ add_circt_dialect_library(CIRCTFIRRTLTransforms
   CIRCTSeq
   CIRCTSim
   CIRCTSV
+  CIRCTSynth
   CIRCTSupport
   MLIRIR
   MLIRPass
