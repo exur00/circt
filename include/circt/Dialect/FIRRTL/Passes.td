@@ -44,7 +44,7 @@ def LowerFIRRTLAnnotations : Pass<"firrtl-lower-annotations", "firrtl::CircuitOp
     Option<"allowAddingPortsOnPublic", "allow-adding-ports-on-public-modules", "bool", "false",
       "Allow public modules to gain additional ports as a result of wiring.">,
   ];
-  let dependentDialects = ["hw::HWDialect"];
+  let dependentDialects = ["hw::HWDialect", "synth::SynthDialect"];
   let statistics = [
     Statistic<"numRawAnnotations", "num-raw-annos",
       "Number of raw annotations on circuit">,

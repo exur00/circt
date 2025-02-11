@@ -32,6 +32,7 @@
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/SV/SVAttributes.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
+#include "circt/Dialect/Synth/IR/SynthDialect.h"
 #include "circt/Support/Debug.h"
 #include "mlir/IR/Diagnostics.h"
 #include "llvm/ADT/APSInt.h"
@@ -374,7 +375,7 @@ static LogicalResult applyIirAnnotation(const AnnoPathValue &target,
   
   //return error() << "reached applyIirAnno"; // TODO remove, just a test
   auto attr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::IIR);
-  op->setAttr("test", attr);
+  op->setAttr("synth.attributeEnum", attr);
   return success();
 }
 
