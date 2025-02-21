@@ -10,6 +10,7 @@
 #include "circt/Dialect/Synth/IR/SynthDialect.h"
 #include "circt/Dialect/Synth/IR/SynthTypes.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Types.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -20,7 +21,7 @@ using namespace synth;
 #define GET_ATTRDEF_CLASSES
 #include "circt/Dialect/Synth/IR/SynthAttributes.cpp.inc"
 
-Type SynthEnumConstAttr::getType() { return nullptr; } // TODO: implement this. (see implementation in seq?)
+Type SynthEnumConstAttr::getType() { return synth::EnumType::get(getContext()); } // TODO: implement this. (see implementation in seq?)
 
 void SynthDialect::registerAttributes() {
   addAttributes<

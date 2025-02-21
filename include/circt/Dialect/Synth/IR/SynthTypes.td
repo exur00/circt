@@ -16,9 +16,9 @@
 include "circt/Dialect/Synth/IR/SynthDialect.td"
 include "mlir/IR/AttrTypeBase.td"
 
-class SynthTypeDef<string name> : TypeDef<SynthDialect, name>;
+class SynthType<string name> : TypeDef<SynthDialect, name>;
 
-def SequenceType : SynthTypeDef<"Sequence"> {
+def SequenceType : SynthType<"Sequence"> {
  let summary = "handle to a sequence closure";
  let description = [{
    An SSA value of this type refers to an `synth.sequence` operation and the
@@ -27,6 +27,14 @@ def SequenceType : SynthTypeDef<"Sequence"> {
 
  let mnemonic = "sequence";
  let assemblyFormat = "";
+}
+
+def SynthEnumType : SynthType<"Enum"> {
+  let summary = "A type synth annotations";
+  let description = [{
+    todo
+  }];
+  let mnemonic = "synthEnum";
 }
 
 #endif // CIRCT_DIALECT_SYNTH_IR_SYNTHTYPES_TD
