@@ -3026,9 +3026,9 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
   
-  // Add iirAnnotation
- if (auto iirAttr = op->getAttr("hw.iirAnnotation"))
-    reg->setAttr("hw.iirAnnotation", iirAttr);
+  // Move iirAnnotation
+ if (auto iirAttr = op->getAttr("synth.attributeEnum"))
+    reg->setAttr("synth.attributeEnum", iirAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
@@ -3070,6 +3070,10 @@ LogicalResult FIRRTLLowering::visitDecl(RegResetOp op) {
   // Move SV attributes.
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
+
+  // Move iirAnnotation
+  if (auto iirAttr = op->getAttr("synth.attributeEnum"))
+    reg->setAttr("synth.attributeEnum", iirAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
