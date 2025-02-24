@@ -373,8 +373,9 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
               "register";
 
   
-  auto type = anno.getAs<StringAttr>("type");
-  return error() << "reached got type"; //TODO remove, just a test
+  auto from = anno.getAs<StringAttr>("from");
+  auto to = anno.getAs<StringAttr>("to");
+  return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
   auto attr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::IIR);
   op->setAttr("synth.attributeEnum", attr);
   return success();
