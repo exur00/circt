@@ -5,6 +5,7 @@ tags
 TAGS
 .vscode
 .idea
+.idea/*
 compile_commands.json
 .cache/
 #*
