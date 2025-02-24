@@ -349,7 +349,7 @@ static LogicalResult applyAttributeAnnotation(const AnnoPathValue &target,
   return success();
 }
 
-static LogicalResult applyIirAnnotation(const AnnoPathValue &target,
+static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
                                               DictionaryAttr anno,
                                               ApplyState &state) {
   auto *op = target.ref.getOp();
@@ -373,7 +373,8 @@ static LogicalResult applyIirAnnotation(const AnnoPathValue &target,
               "register";
 
   
-  //return error() << "reached applyIirAnno"; // TODO remove, just a test
+  auto type = anno.getAs<StringAttr>("type");
+  return error() << "reached got type"; //TODO remove, just a test
   auto attr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::IIR);
   op->setAttr("synth.attributeEnum", attr);
   return success();
@@ -630,7 +631,7 @@ static llvm::StringMap<AnnoRecord> annotationRecords{{
     {wiringSinkAnnoClass, {stdResolve, applyWiring}},
     {wiringSourceAnnoClass, {stdResolve, applyWiring}},
     {attributeAnnoClass, {stdResolve, applyAttributeAnnotation}},
-    {iirAnnoClass, {stdResolve, applyIirAnnotation}}}};
+    {synthAnnoClass, {stdResolve, applySynthAnnotation}}}};
 
 LogicalResult
 registerAnnotationRecord(StringRef annoClass, AnnoRecord annoRecord,
