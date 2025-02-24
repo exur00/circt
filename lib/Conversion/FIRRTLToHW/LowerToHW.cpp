@@ -2939,6 +2939,10 @@ LogicalResult FIRRTLLowering::visitDecl(WireOp op) {
 
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(wire, svAttrs);
+  
+  // Move Synth attributes.
+  if (auto synthAttr = op->getAttr("synth.attributeEnum"))
+    wire->setAttr("synth.attributeEnum", synthAttr);
 
   return setLowering(op.getResult(), wire);
 }
@@ -3026,9 +3030,9 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
   
-  // Move iirAnnotation
- if (auto iirAttr = op->getAttr("synth.attributeEnum"))
-    reg->setAttr("synth.attributeEnum", iirAttr);
+  // Move Synth attributes.
+ if (auto synthAttr = op->getAttr("synth.attributeEnum"))
+    reg->setAttr("synth.attributeEnum", synthAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
@@ -3071,9 +3075,9 @@ LogicalResult FIRRTLLowering::visitDecl(RegResetOp op) {
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(reg, svAttrs);
 
-  // Move iirAnnotation
-  if (auto iirAttr = op->getAttr("synth.attributeEnum"))
-    reg->setAttr("synth.attributeEnum", iirAttr);
+  // Move Synth attributes.
+  if (auto synthAttr = op->getAttr("synth.attributeEnum"))
+    reg->setAttr("synth.attributeEnum", synthAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
