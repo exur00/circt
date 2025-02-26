@@ -38,6 +38,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
 
 #define DEBUG_TYPE "lower-annos"
@@ -375,8 +376,9 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
   
   auto from = anno.getAs<StringAttr>("from");
   auto to = anno.getAs<StringAttr>("to");
-  return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
-  auto attr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::IIR);
+  //return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
+  auto enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);
+  auto attr = synth::StageAttr::get(op->getContext(), enumAttr, std::stoi(from.getValue().str()), std::stoi(to.getValue().str()));
   op->setAttr("synth.attributeEnum", attr);
   return success();
 }
