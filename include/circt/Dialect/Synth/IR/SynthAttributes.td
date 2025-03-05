@@ -19,10 +19,10 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 
 let cppNamespace = "circt::synth" in {
 
-def IntrFetch: I32EnumAttrCase<"InstructionFetchRegister", 0, "instruction fetch register">;
-def PC: I32EnumAttrCase<"ProgramCounter", 1, "program counter">;
-def CommitSignal: I32EnumAttrCase<"CommitSignal", 2, "commit signal">;
-def InterstageReg: I32EnumAttrCase<"InterstageReg", 3, "interstage register">;
+def IntrFetch: I32EnumAttrCase<"InstructionFetchRegister", 0, "instruction_fetch_register">;
+def PC: I32EnumAttrCase<"ProgramCounter", 1, "program_counter">;
+def CommitSignal: I32EnumAttrCase<"CommitSignal", 2, "commit_signal">;
+def InterstageReg: I32EnumAttrCase<"InterstageReg", 3, "interstage_register">;
 
 // Constant synth enum values.
 def SynthEnumAttrImpl: I32EnumAttr<"SynthEnumConst", "synth enum constant",
