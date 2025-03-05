@@ -36,6 +36,7 @@
 #include "circt/Dialect/SV/SVPasses.h"
 #include "circt/Dialect/Seq/SeqPasses.h"
 #include "circt/Dialect/Sim/SimPasses.h"
+#include "circt/Dialect/Synth/SynthPasses.h"
 #include "circt/Dialect/SystemC/SystemCPasses.h"
 #include "circt/Dialect/Verif/VerifPasses.h"
 #include "circt/Tools/circt-bmc/Passes.h"
@@ -77,6 +78,7 @@ inline void registerAllPasses() {
   pipeline::registerPasses();
   sim::registerPasses();
   ssp::registerPasses();
+  synth::registerPasses();
   systemc::registerPasses();
   verif::registerPasses();
   moore::registerPasses();
