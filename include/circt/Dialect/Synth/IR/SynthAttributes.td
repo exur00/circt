@@ -21,12 +21,12 @@ let cppNamespace = "circt::synth" in {
 
 def IntrFetch: I32EnumAttrCase<"InstructionFetchRegister", 0, "instruction_fetch_register">;
 def PC: I32EnumAttrCase<"ProgramCounter", 1, "program_counter">;
-def CommitSignal: I32EnumAttrCase<"CommitSignal", 2, "commit_signal">;
+def WaitSignal: I32EnumAttrCase<"WaitSignal", 2, "wait_signal">;
 def InterstageReg: I32EnumAttrCase<"InterstageReg", 3, "interstage_register">;
 
 // Constant synth enum values.
 def SynthEnumAttrImpl: I32EnumAttr<"SynthEnumConst", "synth enum constant",
-                                [IntrFetch, PC, CommitSignal, InterstageReg]> {
+                                [IntrFetch, PC, WaitSignal, InterstageReg]> {
   let genSpecializedAttr = 0;
 }
 

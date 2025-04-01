@@ -374,10 +374,15 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
               "register";
 
   
+  auto type = anno.getAs<StringAttr>("type");
+  auto wait = OpBuilder(anno.getContext()).getStringAttr("wait");
   auto from = anno.getAs<StringAttr>("from");
   auto to = anno.getAs<StringAttr>("to");
+  circt::synth::SynthEnumConstAttr enumAttr;
+  if (type != nullptr && type.compare(wait) == 0) {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::WaitSignal);}
+  else {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);}
   //return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
-  auto enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);
+  //auto enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);
   auto attr = synth::StageAttr::get(op->getContext(), enumAttr, std::stoi(from.getValue().str()), std::stoi(to.getValue().str()));
   op->setAttr("synth.attributeEnum", attr);
   return success();

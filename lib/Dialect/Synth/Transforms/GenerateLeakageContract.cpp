@@ -20,6 +20,8 @@
 #include "mlir/IR/Block.h"
 #include "llvm/ADT/DenseMap.h"
 #include "circt/Dialect/Verif/VerifOps.h"
+#include "circt/Dialect/LTL/LTLTypes.h"
+#include "circt/Dialect/LTL/LTLOps.h"
 #include "mlir/IR/Builders.h"
 
 namespace circt {
@@ -40,18 +42,41 @@ struct SynthLeakageContractPass : public circt::synth::impl::SynthGenerateLeakag
 
 DenseMap<size_t, hw::HWModuleOp> stages;
 DenseMap<size_t, seq::FirRegOp> pipelineRegisters; // TODO: suport more than just firreg?
+DenseMap<size_t, hw::WireOp> waitSignals;
+DenseMap<size_t, hw::WireOp> doneSignals;
 
+hw::WireOp addExtraHardware(mlir::OpBuilder builder, size_t stageNum) {
+  auto name = builder.getStringAttr("done" + std::to_string(stageNum));
+  hw::WireOp waitSignal = waitSignals[stageNum];
+  auto tmp = waitSignal.getOperation();
+  auto tmpBlock = tmp->getBlock();
+  hw::WireOp done = builder.create<hw::WireOp>(
+    waitSignal.getLoc(), waitSignal, name//, innerSym
+  );
+  doneSignals[stageNum] = done;
+  //TODO: donttouch attribuut nodig?
+  return done;
+}
+
+void addAssumptions(mlir::OpBuilder builder) {
+
+}
+
+void addAssertions(mlir::OpBuilder builder, hw::WireOp done) {
+  // sequence "##1 done" betekent dat het klaar is in 1 cycle -> ##1 not done om te testen
+  //ltl::SequenceType seq = ltl::SequenceType::get(done.getContext());
+  auto loc = done.getLoc();
+  auto delay = builder.getIntegerAttr(Builder(done).getIntegerType(64, false), 1);
+  auto length = builder.getIntegerAttr(Builder(done).getIntegerType(64, false), 0);
+  ltl::DelayOp seqOp = builder.create<ltl::DelayOp>(loc, done.getResult(), delay, length);//builder.getUI32IntegerAttr(1), builder.getUI32IntegerAttr(0));  
+  
+  //ltl::SequenceType seq = seqOp.getResult();
+  //verif::AssertOp assert = builder.create<verif::AssertOp>(
+  //  done.getLoc(), 
+  //);
+}
 
 void SynthLeakageContractPass::runOnOperation() {
-  // size_t nWires = 0; // Counts the number of wires modified
-  // getOperation().walk(
-  //     [&](hw::WireOp wire) { // Walk over every wire in the module
-  //       wire.setName("myfoo_" + std::to_string(nWires++)); // Rename said wire
-  //       modules[nWires] = wire;
-  //       hw::WireOp a = modules.at((size_t) 1);
-  //     });
-
-  // walk over modues (stages)
   size_t nStages = 0;
 
   getOperation().walk(
@@ -79,22 +104,29 @@ void SynthLeakageContractPass::runOnOperation() {
       }
     });
 
+  getOperation().walk(
+    [&](hw::WireOp w) {
+      mlir::Attribute attr = w.getOperation()->getDiscardableAttr("synth.attributeEnum");
+      if (attr) {
+        synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+        //if (!synthAttr) {return error() << "attributeEnum not of synth enum type";} //TODO: add check
+        size_t stageNumber = synthAttr.getFromStage();
+        waitSignals[stageNumber] = w;
+      }
+    });
+
   // now we have identified all pipeline stages and pipeline registers, we can analyse them 1 at a time
   for (size_t s = 1; s <= nStages; s++) {
     hw::HWModuleOp stage = stages[s];
-    //Block stageBlock = stage.getBody().getBlocks().front();
-    //auto stageBlock = stage->getRegions().front()->getBlocks().front();
-    //auto stageBlock = stage.entry_block(stage);
-    //auto stageBlock = stage.getRegion(0)->;
     auto stageBlock = stage.getOperation()->getRegions();
     
-    auto builder = OpBuilder(stageBlock.front());
-    //auto newModule = builder.create<verif::AssertOp>(stage.getLoc(), verif::AssertOp());
-    //auto newModule = builder.create<hw::ConstantOp>(stage.getLoc(), IntegerAttr::get(I32Type, 5));
-    auto test = builder.create<hw::ConstantOp>(stage.getLoc(), mlir::Builder(stage).getI8Attr(5));
-    int a = 1+1;
-    //auto builder = OpBuilder::atBlockEnd(stageBlock);
-
+    mlir::OpBuilder builder = OpBuilder(stageBlock.front());
+    //auto test = builder.create<hw::ConstantOp>(stage.getLoc(), builder.getI8Type(), 0);
+    //TODO: check everything is present for each state!
+    hw::WireOp doneSignal = addExtraHardware(builder, s);
+    doneSignals[s] = doneSignal;
+    addAssumptions(builder);
+    addAssertions(builder, doneSignal);
   }
 }
 
