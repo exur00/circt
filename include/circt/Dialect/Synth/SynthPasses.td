@@ -25,6 +25,11 @@ def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "hw::
   }];
   let constructor = "circt::synth::createGenerateLeakageContractPass()";
   let dependentDialects = ["circt::hw::HWDialect"];//, "circt::synth::SynthDialect"];
+    let options = [
+    Option<"processorModule", "processor-module", "std::string",
+           /*default=*/"",
+           "Name of the processor module to analyze.">,
+  ];
 }
 
 #endif // CIRCT_DIALECT_SYNTH_SYNTHPASSES_TD

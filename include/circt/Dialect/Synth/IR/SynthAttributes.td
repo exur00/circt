@@ -20,13 +20,16 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 let cppNamespace = "circt::synth" in {
 
 def IntrFetch: I32EnumAttrCase<"InstructionFetchRegister", 0, "instruction_fetch_register">;
-def PC: I32EnumAttrCase<"ProgramCounter", 1, "program_counter">;
-def CommitSignal: I32EnumAttrCase<"CommitSignal", 2, "commit_signal">;
+def ControlFSM: I32EnumAttrCase<"ControlFSM", 1, "control_fsm">;
+def WaitSignal: I32EnumAttrCase<"WaitSignal", 2, "wait_signal">;
 def InterstageReg: I32EnumAttrCase<"InterstageReg", 3, "interstage_register">;
+def DataSignal: I32EnumAttrCase<"DataSignal", 4, "data_signal">;
+def InstrSignal: I32EnumAttrCase<"InstrSignal", 5, "instruction_signal">;
+
 
 // Constant synth enum values.
 def SynthEnumAttrImpl: I32EnumAttr<"SynthEnumConst", "synth enum constant",
-                                [IntrFetch, PC, CommitSignal, InterstageReg]> {
+                                [IntrFetch, ControlFSM, WaitSignal, InterstageReg, DataSignal, InstrSignal]> {
   let genSpecializedAttr = 0;
 }
 
