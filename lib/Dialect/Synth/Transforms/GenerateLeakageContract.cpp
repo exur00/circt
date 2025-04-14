@@ -14,6 +14,7 @@
 #include "circt/Dialect/Synth/SynthPasses.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
 #include "circt/Dialect/HW/HWTypes.h"
+#include "circt/Dialect/HW/HWInstanceImplementation.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -46,46 +47,67 @@ private:
 
 
   DenseMap<size_t, hw::HWModuleOp> stages;
+  DenseMap<size_t, hw::InstanceOp> stageInstances;
   // for each stage t and t+1, pipeline[t] holds a vector containing all the registers 
   std::vector<std::vector<std::pair<seq::FirRegOp, synth::SynthEnumConst>>> pipelineRegisters;
   // for each instruction, instructions[i] holds a string 
   //DenseMap<std::string, std::string> instructions;
   hw::HWModuleOp processorModuleOp;
-  std::optional<SymbolTable> symTable;
+  //mlir::SymbolTableCollection &symTables;
   size_t nStages = 0;
 
 public:
 
   bool isDataIndependent(mlir::Operation *op) {
+    // TODO: add check that if op is hw:ConstantOp it is independent
     auto attr = op->getDiscardableAttr("synth.attributeEnum");
-      if (attr) {
-        synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-        if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::DataSignal) {return false;}
-        if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::InstrSignal) {return true;}
-      }
+    if (attr) {
+      synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+      if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::DataSignal) {return false;}
+      if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::InstrSignal) {return true;}
+    }
+    // TODO: add check that if is an unmarked module input / port, it is independent
     for (Value operand : op->getOperands()) {
       return isDataIndependent(operand.getDefiningOp());
     }
     return true;
   }
 
-  bool isDataIndependent(size_t stageNumber, hw::WireOp value) {
-    //std::vector<mlir::Operation> added = {}; // keep track of added op's to remove after test 
-    addInstructionAssumptions(stageNumber);
-    //addAssertion();
-    return true;
+
+
+  void registerInstances() {
+    mlir::SymbolTableCollection symTables;
+    
+    getOperation().getOperation()->getParentOp()->walk(
+      [&](hw::InstanceOp instance) {
+        auto tmp = instance.getInstanceName().str(); // TODO: remove for debugging only
+
+        Operation *module;
+        mlir::FlatSymbolRefAttr moduleRef = instance.getModuleNameAttr();
+        mlir::SymbolTableCollection symTables;
+        if (failed(hw::instance_like_impl::verifyReferencedModule(instance.getOperation(), symTables,
+                                                            moduleRef, module))) {
+          // TODO: error
+          os << "test";
+        }
+        hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(*module);
+        auto tmp3 = moduleOp.getModuleName().str(); // TODO: remove for debugging only
+
+        auto tmpAttr = module->getDiscardableAttr("synth.attributeEnum");
+          if (tmpAttr != nullptr) {
+          synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmpAttr);
+            if (attr) {
+                size_t fromStage = attr.getFromStage();
+                stageInstances[fromStage] = instance;
+                os << "registered stageInstance for module " << moduleOp.getModuleName().str() << " as stage number " << std::to_string(fromStage) << "\n";
+                countModule(moduleOp);
+            }
+          }
+      });
   }
 
-  void addInstructionAssumptions(size_t stageNumber) {
-    hw::HWModuleOp moduleOp = stages.find(stageNumber)->second;
-
-    //walk main block to find instanceOp with correct symbol
-    for ( mlir::Operation &op : processorModuleOp->getRegion(0).front().getOperations()) {
-      hw::InstanceOp instance = dyn_cast<hw::InstanceOp>(op);
-      if (!instance) {continue;}
-      auto tmp = instance.getInstanceName().str();
-    }
-    //find link from instanceOp to the registers providing input
+    bool isDataIndependent(size_t stageNumber, hw::WireOp value) {
+    return true; //TODO: fix this analysis
   }
 
   std::string analyseStage(size_t stageNumber) {
@@ -103,24 +125,26 @@ public:
             stages[fromStage] = module;
             if (fromStage > nStages) {nStages = fromStage;}
       		os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
+          //symTables.getSymbolTable(module);
+          //os << "added module to symbolTable\n";
       		return;
     	}
     }
     os << "registered module " << module.getName().str() << " is not a stage" << "\n";
   }
 
-  void countAllModules(mlir::Block &block, std::string toplevelName) {
-    for ( mlir::Operation &op : block.getOperations()) {
-      hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(op);
-      if (moduleOp) {
-        if(moduleOp.getName().str() == toplevelName) {
-        	processorModuleOp = moduleOp;
-        } else {
-        	countModule(moduleOp);
-        }
-      }
-    }
-  }
+//  void countAllModules(mlir::Block &block, std::string toplevelName) {
+//    for ( mlir::Operation &op : block.getOperations()) {
+//      hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(op);
+//      if (moduleOp) {
+//        if(moduleOp.getName().str() == toplevelName) {
+//        	processorModuleOp = moduleOp;
+//        } else {
+//        	countModule(moduleOp);
+//        }
+//      }
+//    }
+//  }
 
   void addPipelineRegister(seq::FirRegOp reg, size_t fromStage, synth::SynthEnumConst enumValue) {
     pipelineRegisters[fromStage].push_back({reg, enumValue});
@@ -145,9 +169,9 @@ public:
       });
   }
 
-  void registerAllModules(mlir::Operation &op) {
-    symTable = std::optional(mlir::SymbolTable(&op));
-  }
+  // void registerAllModules(mlir::Operation *op) {
+  //   symTables.getSymbolTable(op);
+  // }
 
   bool testPipelineValid() {
     // test modules 1..nStages are present
@@ -175,16 +199,46 @@ public:
       pipelineRegisters.push_back({});
     }
   }
+
+  void propagateRegisterAnnotations() {
+    // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
+    for (size_t i = 2; i <= nStages; i++) {
+      // TODO: propagate data annotations from pipeline regs to inputs
+      hw::InstanceOp instance = stageInstances.at(i);
+      hw::HWModuleOp module = stages.at(i);
+      auto argnames = instance.getArgNames();
+      auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
+	    os << std::to_string(i) << "\n";
+      for (Value operand : instance.getOperands()) {
+        // TODO: handle clock and reset signals
+        if (Operation *defOp = operand.getDefiningOp()) {
+            os << "Operand defined by: ";
+            //defOp->dump();
+            defOp->print(os);
+            os << "\n";
+          } else {
+            os << "Operand is a block argument or undefined:\n";
+            operand.print(os);
+            os << "\n";
+          }
+        }
+// inspiratie:
+//      instance_like_impl::verifyInstanceOfHWModule(
+//      *this, getModuleNameAttr(), getInputs(), getResultTypes(), getArgNames(),
+//      getResultNames(), getParameters(), symbolTable);
+    }
+  }
   };
 } // namespace  
 
 void SynthLeakageContractPass::runOnOperation() {
   if (getOperation().getName().str() != processorModule) {return;} // only keep the pass that runs on the processor operation
 
-  countAllModules(*getOperation()->getBlock(), processorModule);
+  //countAllModules(*getOperation()->getBlock(), processorModule);
+  registerInstances();
   countAllPipelineRegisters();
 
-  registerAllModules(*getOperation().getOperation()->getParentOp());
+  propagateRegisterAnnotations();
 
   if (!testPipelineValid()) {return;}
     
@@ -195,7 +249,7 @@ void SynthLeakageContractPass::runOnOperation() {
     analysis += analyseStage(s);
     analysis += "\n";
   }
-  os << "\n\nAnalysis:\n" << analysis; 
+  os << "\n\nAnalysis results:\n" << analysis;
 }
 
 // Constructor with custom ostream
