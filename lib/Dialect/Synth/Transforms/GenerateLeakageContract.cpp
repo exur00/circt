@@ -11,10 +11,12 @@
 
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/Seq/SeqOps.h"
+#include "circt/Dialect/Comb/CombOps.h"
 #include "circt/Dialect/Synth/SynthPasses.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/HW/HWInstanceImplementation.h"
+#include "circt/Dialect/FSM/FSMOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -48,6 +50,8 @@ private:
 
   DenseMap<size_t, hw::HWModuleOp> stages;
   DenseMap<size_t, hw::InstanceOp> stageInstances;
+  DenseMap<size_t, fsm::MachineOp> stateMachines;
+  DenseMap<size_t, fsm::HWInstanceOp> stateMachineInstances;
   // for each stage t and t+1, pipeline[t] holds a vector containing all the registers 
   std::vector<std::vector<std::pair<seq::FirRegOp, synth::SynthEnumConst>>> pipelineRegisters;
   // for each instruction, instructions[i] holds a string 
@@ -73,7 +77,33 @@ public:
     return true;
   }
 
+  // void annotateInputs(igraph::InstanceOpInterface instance, igraph::ModuleOpInterface module) {
+  //   auto argnames = instance.getArgNames();
+  //   auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
+  //   os << std::to_string(i) << "\n";
+  //   for (Value operand : instance.getOperands()) {
+  //     // TODO: handle clock and reset signals as separate case
+  //     if (Operation *defOp = operand.getDefiningOp()) {
+  //         os << "Operand defined by: ";
+  //         defOp->print(os);
+  //         os << "\n";
+  //       } else {
+  //         os << "Operand is a block argument or undefined:\n";
+  //         operand.print(os);
+  //         os << "\n";
+  //       }
+  //     }
+  // }
 
+  bool stageIsCombinational(size_t stageNum) {
+    hw::HWModuleOp stage = stages.at(stageNum);
+    auto attr = stage->getDiscardableAttr("synth.attributeEnum");
+    if (attr) {
+      synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+      return (synthAttr.getEnumAttr().getValue() == SynthEnumConst::CombinationalStage);
+    }
+    //TODO: error
+  }
 
   void registerInstances() {
     mlir::SymbolTableCollection symTables;
@@ -106,13 +136,31 @@ public:
       });
   }
 
-    bool isDataIndependent(size_t stageNumber, hw::WireOp value) {
-    return true; //TODO: fix this analysis
-  }
-
   std::string analyseStage(size_t stageNumber) {
-    isDataIndependent(stageNumber, nullptr); // TODO: fix 2nd argument
     os << "analyzing stage " << stageNumber << "\n";
+
+    if (stageIsCombinational(stageNumber)) {
+      os << "is combinational\n";
+      return std::to_string(stageNumber) + " is combinational";
+    }
+    hw::HWModuleOp stage = stages.at(stageNumber);
+    //TODO: first find FSM instance+module -> walk FSMOps en voeg toe aan FSMs map?
+    fsm::InstanceOp fsmInstance;
+    stage.walk(
+      [&] (fsm::InstanceOp instance) {
+        fsmInstance = instance;
+      }
+    );
+    fsm::MachineOp fsm = fsmInstance.getMachineOp();
+    if (!fsm) {
+      os << "error, referenced fsm invalid";
+      return "error, referenced fsm invalid";
+    }
+
+    //TODO: match inputs, for each input: mark module side input data dependent by search if instance side is data dependent (kan general voor module : instanceOpInterface)
+    //annotateInputs(fsmInstance, fsm);
+    //TODO: analyze FSM MachineOp
+
     return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
   }
 
@@ -200,20 +248,59 @@ public:
     }
   }
 
+  void markOperation(mlir::Operation *user) {
+    //TODO: implement
+  }
+
+  void markBlockInputUsers(size_t inputNumber, mlir::Block &block) {
+    mlir::Value::user_range users = block.getArgument(inputNumber).getUsers();
+    for (mlir::Operation *user : users) {
+      markOperation(user);
+    }
+  }
+
   void propagateRegisterAnnotations() {
     // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
     for (size_t i = 2; i <= nStages; i++) {
       // TODO: propagate data annotations from pipeline regs to inputs
       hw::InstanceOp instance = stageInstances.at(i);
       hw::HWModuleOp module = stages.at(i);
+      // auto instanceInputs = instance.getInputs();
+      auto instanceOperands = instance.getOperands();
       auto argnames = instance.getArgNames();
       auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
 	    os << std::to_string(i) << "\n";
-      for (Value operand : instance.getOperands()) {
-        // TODO: handle clock and reset signals
+      //for (Value operand : instance.getOperands()) {
+      for (size_t i = 0; i < instanceOperands.size(); i++) {
+        auto operand = instanceOperands[i];
+        //auto port = module.getPort(module.getPortIdForInputId(i)); // TODO: kijk waar je uitkomt met het terugkeren naar operanden vanuit de module.
+        auto& block = module.getBody().front(); // TODO: getBody should return a block (because HWModuleOp has the SingleBlock trait) but returns a region
+        mlir::Value blockInput = block.getArgument(i);
+        auto users = blockInput.getUsers();
+        for (auto user : users) {
+          user->dump();
+        }
+
+
+        //TODO: remove, just for a test
+        module.walk(
+          [&](comb::ICmpOp op) {
+            mlir::Attribute attr = op.getOperation()->getDiscardableAttr("synth.attributeEnum");
+            auto tmp = op.getOperation();
+            if (attr) {
+              synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+              if (synthAttr) {
+                size_t fromStage = synthAttr.getFromStage();
+                size_t toStage = synthAttr.getToStage();
+                synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
+              }
+            }
+          }
+        );
+
+        // TODO: handle clock and reset signals as separate case
         if (Operation *defOp = operand.getDefiningOp()) {
             os << "Operand defined by: ";
-            //defOp->dump();
             defOp->print(os);
             os << "\n";
           } else {
@@ -222,12 +309,9 @@ public:
             os << "\n";
           }
         }
-// inspiratie:
-//      instance_like_impl::verifyInstanceOfHWModule(
-//      *this, getModuleNameAttr(), getInputs(), getResultTypes(), getArgNames(),
-//      getResultNames(), getParameters(), symbolTable);
     }
   }
+
   };
 } // namespace  
 

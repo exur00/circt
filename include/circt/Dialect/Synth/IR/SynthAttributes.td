@@ -25,11 +25,12 @@ def WaitSignal: I32EnumAttrCase<"WaitSignal", 2, "wait_signal">;
 def InterstageReg: I32EnumAttrCase<"InterstageReg", 3, "interstage_register">;
 def DataSignal: I32EnumAttrCase<"DataSignal", 4, "data_signal">;
 def InstrSignal: I32EnumAttrCase<"InstrSignal", 5, "instruction_signal">;
+def combinationalStage: I32EnumAttrCase<"CombinationalStage", 6, "combinational_stage">;
 
 
 // Constant synth enum values.
 def SynthEnumAttrImpl: I32EnumAttr<"SynthEnumConst", "synth enum constant",
-                                [IntrFetch, ControlFSM, WaitSignal, InterstageReg, DataSignal, InstrSignal]> {
+                                [IntrFetch, ControlFSM, WaitSignal, InterstageReg, DataSignal, InstrSignal, combinationalStage]> {
   let genSpecializedAttr = 0;
 }
 
