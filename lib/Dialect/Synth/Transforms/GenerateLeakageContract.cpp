@@ -57,24 +57,62 @@ private:
   // for each instruction, instructions[i] holds a string 
   //DenseMap<std::string, std::string> instructions;
   hw::HWModuleOp processorModuleOp;
-  //mlir::SymbolTableCollection &symTables;
   size_t nStages = 0;
 
 public:
 
-  bool isDataIndependent(mlir::Operation *op) {
-    // TODO: add check that if op is hw:ConstantOp it is independent
+  std::optional<synth::SynthEnumConst> getDataAttribute(mlir::Operation *op) {
     auto attr = op->getDiscardableAttr("synth.attributeEnum");
-    if (attr) {
-      synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-      if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::DataSignal) {return false;}
-      if (synthAttr.getEnumAttr().getValue() == SynthEnumConst::InstrSignal) {return true;}
+    if (!attr) {return std::nullopt;}
+    synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+    if (!synthAttr) {return std::nullopt;}
+    return synthAttr.getEnumAttr().getValue();
+  }
+
+  std::optional<bool> isDataDependent(mlir::Operation *op) {
+    auto attr = getDataAttribute(op);
+    if (attr == std::nullopt) {return std::nullopt;}
+    SynthEnumConst dataEnum = attr.value();
+    switch(dataEnum) {
+      case SynthEnumConst::DataSignal:
+        return true;
+      case SynthEnumConst::InstrSignal:
+        return false;
+      case SynthEnumConst::ConstantSignal:
+        return false;
+      case SynthEnumConst::ExternalSignal:
+        return false;
+      default:
+        os << "unknown signal at:\n";
+        op->print(os);
     }
-    // TODO: add check that if is an unmarked module input / port, it is independent
-    for (Value operand : op->getOperands()) {
-      return isDataIndependent(operand.getDefiningOp());
+  }
+
+  bool isDataDependentRecursive(mlir::Operation *op) {
+    if (isa<hw::ConstantOp>(*op)) {return false;}
+    auto dataDependentAnnotation = isDataDependent(op);
+    if (dataDependentAnnotation != std::nullopt) {
+      return dataDependentAnnotation.value();
+    } else {
+      // TODO: add check that if is an unmarked module input / port, it is independent
+      bool inputsDataDependent = false;
+      for (Value operand : op->getOperands()) {
+        if (isDataDependentRecursive(operand.getDefiningOp())) {inputsDataDependent = true;}
+      }
+      return inputsDataDependent;
+    }    
+  }
+
+  synth::StageAttr getStageAttr(mlir::Operation *op) {
+    auto attr = op->getDiscardableAttr("synth.attributeEnum");
+    if (!attr) {
+        //TODO: error instead of returning
+      }
+    synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+    if(!synthAttr) {
+      //TODO: error instead of returning
     }
-    return true;
+    return synthAttr;
   }
 
   // void annotateInputs(igraph::InstanceOpInterface instance, igraph::ModuleOpInterface module) {
@@ -98,11 +136,10 @@ public:
   bool stageIsCombinational(size_t stageNum) {
     hw::HWModuleOp stage = stages.at(stageNum);
     auto attr = stage->getDiscardableAttr("synth.attributeEnum");
-    if (attr) {
-      synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-      return (synthAttr.getEnumAttr().getValue() == SynthEnumConst::CombinationalStage);
-    }
-    //TODO: error
+    if (!attr) {return false;}
+    synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+    if (!synthAttr) {return false;}
+    return (synthAttr.getEnumAttr().getValue() == SynthEnumConst::CombinationalStage);
   }
 
   void registerInstances() {
@@ -248,55 +285,58 @@ public:
     }
   }
 
-  void markOperation(mlir::Operation *user) {
-    //TODO: implement
+  void markOperation(mlir::Operation *user) {// TODO: add argument what to mark it
+    SynthEnumConstAttr enumAttr = SynthEnumConstAttr::get(user->getContext(), SynthEnumConst::DataSignal); // TODO assign value based to mark based on argument
+    auto attr = synth::StageAttr::get(user->getContext(), enumAttr, 0, 0);
+    user->setAttr("synth.attributeEnum", attr);
   }
 
-  void markBlockInputUsers(size_t inputNumber, mlir::Block &block) {
+  void markBlockInputUsers(size_t inputNumber, mlir::Block &block) { // TODO: add argument what to mark.
     mlir::Value::user_range users = block.getArgument(inputNumber).getUsers();
     for (mlir::Operation *user : users) {
       markOperation(user);
     }
   }
 
-  void propagateRegisterAnnotations() {
+  void propagateAnnotations() {
     // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
     for (size_t i = 2; i <= nStages; i++) {
-      // TODO: propagate data annotations from pipeline regs to inputs
       hw::InstanceOp instance = stageInstances.at(i);
       hw::HWModuleOp module = stages.at(i);
-      // auto instanceInputs = instance.getInputs();
       auto instanceOperands = instance.getOperands();
       auto argnames = instance.getArgNames();
       auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
 	    os << std::to_string(i) << "\n";
       //for (Value operand : instance.getOperands()) {
-      for (size_t i = 0; i < instanceOperands.size(); i++) {
-        auto operand = instanceOperands[i];
+      for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
+        auto operand = instanceOperands[i]; // input of instanceOp
+        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());}
+
         //auto port = module.getPort(module.getPortIdForInputId(i)); // TODO: kijk waar je uitkomt met het terugkeren naar operanden vanuit de module.
-        auto& block = module.getBody().front(); // TODO: getBody should return a block (because HWModuleOp has the SingleBlock trait) but returns a region
-        mlir::Value blockInput = block.getArgument(i);
-        auto users = blockInput.getUsers();
-        for (auto user : users) {
-          user->dump();
-        }
+        // auto& block = module.getBody().front(); // TODO: getBody should return a block (because HWModuleOp has the SingleBlock trait) but returns a region
+        // mlir::Value blockInput = block.getArgument(i); // matching input inside moduleOp
+        // auto users = blockInput.getUsers();
+        // propagateAnnotations(operand, users);
+        // for (auto user : users) {
+        //   user->dump();
+        // }
 
 
-        //TODO: remove, just for a test
-        module.walk(
-          [&](comb::ICmpOp op) {
-            mlir::Attribute attr = op.getOperation()->getDiscardableAttr("synth.attributeEnum");
-            auto tmp = op.getOperation();
-            if (attr) {
-              synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-              if (synthAttr) {
-                size_t fromStage = synthAttr.getFromStage();
-                size_t toStage = synthAttr.getToStage();
-                synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
-              }
-            }
-          }
-        );
+        // //TODO: remove, just for a test
+        // module.walk(
+        //   [&](comb::ICmpOp op) {
+        //     mlir::Attribute attr = op.getOperation()->getDiscardableAttr("synth.attributeEnum");
+        //     auto tmp = op.getOperation();
+        //     if (attr) {
+        //       synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+        //       if (synthAttr) {
+        //         size_t fromStage = synthAttr.getFromStage();
+        //         size_t toStage = synthAttr.getToStage();
+        //         synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
+        //       }
+        //     }
+        //   }
+        // );
 
         // TODO: handle clock and reset signals as separate case
         if (Operation *defOp = operand.getDefiningOp()) {
@@ -309,6 +349,34 @@ public:
             os << "\n";
           }
         }
+    }
+  }
+
+  bool instrSatisfiesCase(std::string instruction, mlir::Operation *instrCase) {
+    auto attr = instrCase->getAttr("synth.attributeEnum");
+    if (!attr) {os << "instruction case missing instruction attribute\n";} //TODO: error
+    auto stageAttr = dyn_cast<StageAttr>(attr);
+    if (!stageAttr) {os << "instruction case missing instruction attribute\n";} // TODO: error
+    //TODO: replace this attribute to capture multiple possible instructions
+    // TODO: make this check proper
+    
+    // for (auto instrAttr : instrAttrArray) {
+    //   if (instrAttr.instruction().getValue() == instruction) { //TODO: bij grouping: vervang dit door .contains ofzo
+    //     return true;
+    //   }
+    // }
+    return false;
+  }
+
+  bool analyzeDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) {
+    //TODO: check is OR function
+    for (auto op : decisionFunction.getDefiningOp()->getOperands()) {
+      //TODO: check is AND function, expect 2 Ops
+      auto definingOp = op.getDefiningOp();
+      if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
+      auto instrCase = definingOp->getOperand(0).getDefiningOp();
+      if (!instrSatisfiesCase(current_instruction, instrCase)) {continue;}
+      return isDataDependentRecursive(definingOp->getOperand(1).getDefiningOp());
     }
   }
 
