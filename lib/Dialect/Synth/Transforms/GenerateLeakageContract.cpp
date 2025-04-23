@@ -298,7 +298,7 @@ public:
     }
   }
 
-  void propagateAnnotations() {
+  void propagateRegisterAnnotations() {
     // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
     for (size_t i = 2; i <= nStages; i++) {
       hw::InstanceOp instance = stageInstances.at(i);
