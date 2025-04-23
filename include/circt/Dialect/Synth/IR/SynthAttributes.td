@@ -44,7 +44,7 @@ def SynthEnumAttr : EnumAttr<SynthDialect, SynthEnumAttrImpl,
  }];
 }
 
-/// An attribute holding information about memory initialization.
+/// An attribute holding information about memory initialization. // TODO: change name
 def StageAttribute : AttrDef<SynthDialect, "Stage"> {
   let mnemonic = "stageAttr";
   let summary = "TODO";
@@ -57,6 +57,17 @@ def StageAttribute : AttrDef<SynthDialect, "Stage"> {
     "int":$toStage
   );
   let assemblyFormat = "`<` $enumAttr `,` $fromStage `,` $toStage `>`";
+}
+
+/// An attribute describing an instruction
+def InstrAttribute : AttrDef<SynthDialect, "instr"> {
+  let mnemonic = "instrAttr";
+  let summary = "attribute describing an instruction";
+  let description = [{TODO}];
+  let parameters = (ins
+    "StringRef":$instrName
+  );
+  let assemblyFormat = "`<` $instrName`>`";
 }
 
 }
