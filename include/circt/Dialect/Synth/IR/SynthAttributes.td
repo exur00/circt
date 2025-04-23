@@ -65,7 +65,7 @@ def InstrAttribute : AttrDef<SynthDialect, "instr"> {
   let summary = "attribute describing an instruction";
   let description = [{TODO}];
   let parameters = (ins
-    "StringRef":$instrName
+    "mlir::StringAttr":$instrName
   );
   let assemblyFormat = "`<` $instrName`>`";
 }
