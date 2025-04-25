@@ -58,6 +58,7 @@ private:
   //DenseMap<std::string, std::string> instructions;
   hw::HWModuleOp processorModuleOp;
   size_t nStages = 0;
+  std::string currentInstruction = "ADD"; //TODO: replace by some way to loop for all instructions
 
 public:
 
@@ -172,6 +173,11 @@ public:
           }
       });
   }
+  
+  bool transitionMatchesInstruction(mlir::Operation *op, std::string instruction) {
+    // assumptions: either is marked with instruction(s), or is AND case, of which first operand is marked with instruction(s)
+    return true; //TODO: implement
+  }
 
   std::string analyseStage(size_t stageNumber) {
     os << "analyzing stage " << stageNumber << "\n";
@@ -198,35 +204,39 @@ public:
     //annotateInputs(fsmInstance, fsm);
 
     fsm::StateOp initialState = fsm.getInitialStateOp();
-    std::vector<fsm::StateOp> checkedStates = {};
+    std::vector<fsm::StateOp> checkedStates = {}; // TODO: gezien search, zou hashset in principe efficienter zijn voor grote hoeveelheid opties
     std::vector<fsm::StateOp> statesToCheck = {initialState};
 
     while (statesToCheck.size() > 0) {
       fsm::StateOp currentState = statesToCheck.back(); // TODO: last one because is most efficient?
       statesToCheck.pop_back(); // remove last state from list, we will be checking now.
       checkedStates.push_back(currentState); // mark this state is checked
+      os << "currently analyzing state: " << currentState.getName() << "\n";
 
       mlir::Region &transitions = currentState.getTransitions();
       for (auto &transition : transitions.front().getOperations()) {
         fsm::TransitionOp transitionOp = dyn_cast<fsm::TransitionOp>(transition);
-        if (!transitionOp) {os << "error: expected TransitionOp";} //TODO: error
+        if (!transitionOp) {os << "\terror: expected TransitionOp";} //TODO: error
+        if (!transitionOp.hasGuard()) {
+          os << "\ttransition to: " << transitionOp.getNextState() << " without guard\n";
+          continue;
+        }
         mlir::Region &guard = transitionOp.getGuard();
         auto returnOp = transitionOp.getGuardReturn();
-        auto operands = returnOp.getOperation()->getOperands();
-        returnOp.dump();
-        operands[0].dump();
-        //guard.
-        //if (!transitionMatchesInstruction(transition, currentInstruction)) {continue;} //TODO: uncomment and implement
-        // TODO: register that this is a valid option , and what it depends on.
-
+        auto operands = returnOp.getOperation()->getOperands(); // always has 1 operand.
+        auto decisionFunction = operands[0].getDefiningOp();
+        if (!transitionMatchesInstruction(decisionFunction, currentInstruction)) {continue;}
+        // TODO: check what decision depends on
+        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << "" << "\n"; //TODO: add dependent
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
-        if (find(checkedStates.begin(), checkedStates.end(), nextState) != checkedStates.end()) { // if next state not already checked: add to check
+        if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
           statesToCheck.push_back(nextState);
         }
       }
       // TODO: from the found options with their dependencies: launch analysis on those
       // TODO: keep track of all already checked stages: loops should only be analysed once.
     }
+    os << "finished stage " + std::to_string(stageNumber) + " analysis\n";
     return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
   }
 
