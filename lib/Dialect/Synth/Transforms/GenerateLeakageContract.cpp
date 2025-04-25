@@ -182,22 +182,51 @@ public:
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
     //TODO: first find FSM instance+module -> walk FSMOps en voeg toe aan FSMs map?
-    fsm::InstanceOp fsmInstance;
+    fsm::HWInstanceOp fsmInstance;
     stage.walk(
-      [&] (fsm::InstanceOp instance) {
+      [&] (fsm::HWInstanceOp instance) {
         fsmInstance = instance;
       }
     );
     fsm::MachineOp fsm = fsmInstance.getMachineOp();
     if (!fsm) {
-      os << "error, referenced fsm invalid";
-      return "error, referenced fsm invalid";
+      os << "error, fsm in stage " << stageNumber << "is invalid or missing";
+      return "error, fsm in stage " + std::to_string(stageNumber) + "is invalid or missing";
     }
 
     //TODO: match inputs, for each input: mark module side input data dependent by search if instance side is data dependent (kan general voor module : instanceOpInterface)
     //annotateInputs(fsmInstance, fsm);
-    //TODO: analyze FSM MachineOp
 
+    fsm::StateOp initialState = fsm.getInitialStateOp();
+    std::vector<fsm::StateOp> checkedStates = {};
+    std::vector<fsm::StateOp> statesToCheck = {initialState};
+
+    while (statesToCheck.size() > 0) {
+      fsm::StateOp currentState = statesToCheck.back(); // TODO: last one because is most efficient?
+      statesToCheck.pop_back(); // remove last state from list, we will be checking now.
+      checkedStates.push_back(currentState); // mark this state is checked
+
+      mlir::Region &transitions = currentState.getTransitions();
+      for (auto &transition : transitions.front().getOperations()) {
+        fsm::TransitionOp transitionOp = dyn_cast<fsm::TransitionOp>(transition);
+        if (!transitionOp) {os << "error: expected TransitionOp";} //TODO: error
+        mlir::Region &guard = transitionOp.getGuard();
+        auto returnOp = transitionOp.getGuardReturn();
+        auto operands = returnOp.getOperation()->getOperands();
+        returnOp.dump();
+        operands[0].dump();
+        //guard.
+        //if (!transitionMatchesInstruction(transition, currentInstruction)) {continue;} //TODO: uncomment and implement
+        // TODO: register that this is a valid option , and what it depends on.
+
+        auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
+        if (find(checkedStates.begin(), checkedStates.end(), nextState) != checkedStates.end()) { // if next state not already checked: add to check
+          statesToCheck.push_back(nextState);
+        }
+      }
+      // TODO: from the found options with their dependencies: launch analysis on those
+      // TODO: keep track of all already checked stages: loops should only be analysed once.
+    }
     return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
   }
 
@@ -390,9 +419,9 @@ void SynthLeakageContractPass::runOnOperation() {
   registerInstances();
   countAllPipelineRegisters();
 
-  propagateRegisterAnnotations();
+  //propagateRegisterAnnotations();
 
-  if (!testPipelineValid()) {return;}
+  //if (!testPipelineValid()) {return;}
     
   // now we have identified all pipeline stages and pipeline registers, we can analyse them 1 at a time
   std::string analysis = "";

@@ -28,12 +28,13 @@ def InstrSignal: I32EnumAttrCase<"InstrSignal", 5, "instruction_signal">;
 def CombinationalStage: I32EnumAttrCase<"CombinationalStage", 6, "combinational_stage">;
 def ConstantSignal: I32EnumAttrCase<"ConstantSignal", 7, "constant_signal">;
 def ExternalSignal: I32EnumAttrCase<"ExternalSignal", 8, "external_signal">;
+def Stage : I32EnumAttrCase<"Stage", 9, "stage">;
 
 
 
 // Constant synth enum values.
 def SynthEnumAttrImpl: I32EnumAttr<"SynthEnumConst", "synth enum constant",
-                                [IntrFetch, ControlFSM, WaitSignal, InterstageReg, DataSignal, InstrSignal, CombinationalStage, ConstantSignal, ExternalSignal]> {
+                                [IntrFetch, ControlFSM, WaitSignal, InterstageReg, DataSignal, InstrSignal, CombinationalStage, ConstantSignal, ExternalSignal, Stage]> {
   let genSpecializedAttr = 0;
 }
 
@@ -58,6 +59,14 @@ def StageAttribute : AttrDef<SynthDialect, "Stage"> {
   );
   let assemblyFormat = "`<` $enumAttr `,` $fromStage `,` $toStage `>`";
 }
+
+// def DataDependencyAttribute : AttrDef<SynthDialect, "DataDependency"> {
+//   let mnemonic = "dataDepAttr";
+//   let summary = "TODO";
+//   let description = [{TODO}];
+//   let parameters = (ins
+//   );
+// }
 
 /// An attribute describing an instruction
 def InstrAttribute : AttrDef<SynthDialect, "instr"> {
