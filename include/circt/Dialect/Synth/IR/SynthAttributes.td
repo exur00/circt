@@ -45,7 +45,7 @@ def SynthEnumAttr : EnumAttr<SynthDialect, SynthEnumAttrImpl,
  }];
 }
 
-/// An attribute holding information about memory initialization. // TODO: change name
+/// An attribute holding information about pipeline structure. // TODO: change name
 def StageAttribute : AttrDef<SynthDialect, "Stage"> {
   let mnemonic = "stageAttr";
   let summary = "TODO";
@@ -60,8 +60,36 @@ def StageAttribute : AttrDef<SynthDialect, "Stage"> {
   let assemblyFormat = "`<` $enumAttr `,` $fromStage `,` $toStage `>`";
 }
 
-// def DataDependencyAttribute : AttrDef<SynthDialect, "DataDependency"> {
-//   let mnemonic = "dataDepAttr";
+def Data: I32EnumAttrCase<"Data", 1, "data_signal">;
+def Instruction: I32EnumAttrCase<"Instruction", 2, "instruction_signal">;
+//TODO: add differentiation between reg addresses and contents, same with memory
+// Constant synth enum values.
+def DataDependencyEnumAttrImpl: I32EnumAttr<"DataDependencyEnum", "data dependency enum",
+                                [Data, Instruction]> {
+  let genSpecializedAttr = 0;
+}
+
+def DataDependencyEnumAttr : EnumAttr<SynthDialect, DataDependencyEnumAttrImpl,
+                       "synth_enum_constant",  [TypedAttrInterface]> {
+ let extraClassDeclaration = [{
+    mlir::Type getType();
+ }];
+}
+
+/// used to annotate on what sources a signal depends. empty means no the signal is constant
+def DataDependenciesAttr : AttrDef<SynthDialect, "DataDependencies"> {
+  let mnemonic = "dataDepAttr";
+  let summary = "TODO";
+  let description = [{TODO}];
+  let parameters = (ins
+       "synth::DataDependencyEnumAttr":$dataDepEnum
+  );
+  let assemblyFormat = "`<` $dataDepEnum`>`";
+}
+
+/// used to annotate states in the control FSM of a pipeline stage
+// def FSMStateAttr : AttrDef<SynthDialect, "FSMState"> {
+//   let mnemonic = "FSMStateAttr";
 //   let summary = "TODO";
 //   let description = [{TODO}];
 //   let parameters = (ins

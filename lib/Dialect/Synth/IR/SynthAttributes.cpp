@@ -22,6 +22,7 @@ using namespace synth;
 #include "circt/Dialect/Synth/IR/SynthAttributes.cpp.inc"
 
 Type SynthEnumConstAttr::getType() { return synth::EnumType::get(getContext()); } // TODO: implement this. (see implementation in seq?)
+Type DataDependencyEnumAttr::getType() { return synth::EnumType::get(getContext()); } // TODO: implement this. (see implementation in seq?)
 
 void SynthDialect::registerAttributes() {
   addAttributes<
