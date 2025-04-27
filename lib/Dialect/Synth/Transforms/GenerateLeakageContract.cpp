@@ -328,6 +328,7 @@ public:
     SynthEnumConstAttr enumAttr = SynthEnumConstAttr::get(user->getContext(), SynthEnumConst::DataSignal); // TODO assign value based to mark based on argument
     auto attr = synth::StageAttr::get(user->getContext(), enumAttr, 0, 0);
     user->setAttr("synth.attributeEnum", attr);
+    //TODO: check if already marked, if so mark as least upper bound of those values
   }
 
   void markBlockInputUsers(size_t inputNumber, mlir::Block &block) { // TODO: add argument what to mark.
@@ -349,7 +350,7 @@ public:
       //for (Value operand : instance.getOperands()) {
       for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
         auto operand = instanceOperands[i]; // input of instanceOp
-        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());}
+        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());} // replace with lattice
 
         //auto port = module.getPort(module.getPortIdForInputId(i)); // TODO: kijk waar je uitkomt met het terugkeren naar operanden vanuit de module.
         // auto& block = module.getBody().front(); // TODO: getBody should return a block (because HWModuleOp has the SingleBlock trait) but returns a region
@@ -429,7 +430,7 @@ void SynthLeakageContractPass::runOnOperation() {
   registerInstances();
   countAllPipelineRegisters();
 
-  //propagateRegisterAnnotations();
+  propagateRegisterAnnotations();
 
   //if (!testPipelineValid()) {return;}
     
