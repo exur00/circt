@@ -375,16 +375,37 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
 
   
   auto type = anno.getAs<StringAttr>("type");
-  auto wait = OpBuilder(anno.getContext()).getStringAttr("wait");
+  auto on = anno.getAs<StringAttr>("on");
   auto from = anno.getAs<StringAttr>("from");
   auto to = anno.getAs<StringAttr>("to");
-  circt::synth::SynthEnumConstAttr enumAttr;
-  if (type != nullptr && type.compare(wait) == 0) {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::WaitSignal);}
-  else {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);}
-  //return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
-  //auto enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);
-  auto attr = synth::StageAttr::get(op->getContext(), enumAttr, std::stoi(from.getValue().str()), std::stoi(to.getValue().str()));
-  op->setAttr("synth.attributeEnum", attr);
+  
+  mlir::Attribute attr;
+  if (type == nullptr) {return error() << "annotation did not include type field";}
+  if (type.compare(OpBuilder(anno.getContext()).getStringAttr("pipeline register")) == 0) {
+    attr = synth::StageAttr::get(op->getContext(), synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg), std::stoi(from.getValue().str()), std::stoi(to.getValue().str()));
+    op->setAttr("synth.attributeEnum", attr);
+  }
+  if (type.compare(OpBuilder(anno.getContext()).getStringAttr("stage")) == 0) {
+    attr = synth::StageAttr::get(op->getContext(), synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::Stage), std::stoi(from.getValue().str()), 0);
+    op->setAttr("synth.attributeEnum", attr);
+  }
+  if (type.compare(OpBuilder(anno.getContext()).getStringAttr("dependant")) == 0) {
+    synth::DataDependencyEnum depEnum;
+    if (type.compare(OpBuilder(anno.getContext()).getStringAttr("data")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
+    if (type.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
+    auto enumAttr = synth::DataDependencyEnumAttr::get(op->getContext(), depEnum);
+    attr = synth::DataDependenciesAttr::get(op->getContext(), enumAttr);
+    op->setAttr("synth.dataDep", attr);
+  }
+
+  // auto wait = OpBuilder(anno.getContext()).getStringAttr("wait");
+  // circt::synth::SynthEnumConstAttr enumAttr;
+  // if (type != nullptr && type.compare(wait) == 0) {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::WaitSignal);}
+  // else {enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);}
+  // //return error() << "reached anno from: " + from.getValue() + " to: " + to.getValue(); //TODO remove, just a test
+  // //auto enumAttr = synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::InterstageReg);
+  // auto attr = synth::StageAttr::get(op->getContext(), enumAttr, std::stoi(from.getValue().str()), std::stoi(to.getValue().str()));
+  // op->setAttr("synth.attributeEnum", attr);
   return success();
 }
 

@@ -2943,6 +2943,8 @@ LogicalResult FIRRTLLowering::visitDecl(WireOp op) {
   // Move Synth attributes.
   if (auto synthAttr = op->getAttr("synth.attributeEnum"))
     wire->setAttr("synth.attributeEnum", synthAttr);
+  if (auto dataDepAttr = op->getAttr("synth.dataDep"))
+    wire->setAttr("synth.dataDep", dataDepAttr);
 
   return setLowering(op.getResult(), wire);
 }
@@ -3031,8 +3033,10 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
     sv::setSVAttributes(reg, svAttrs);
   
   // Move Synth attributes.
- if (auto synthAttr = op->getAttr("synth.attributeEnum"))
+  if (auto synthAttr = op->getAttr("synth.attributeEnum"))
     reg->setAttr("synth.attributeEnum", synthAttr);
+  if (auto dataDepAttr = op->getAttr("synth.dataDep"))
+    reg->setAttr("synth.dataDep", dataDepAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
@@ -3078,6 +3082,8 @@ LogicalResult FIRRTLLowering::visitDecl(RegResetOp op) {
   // Move Synth attributes.
   if (auto synthAttr = op->getAttr("synth.attributeEnum"))
     reg->setAttr("synth.attributeEnum", synthAttr);
+  if (auto dataDepAttr = op->getAttr("synth.dataDep"))
+    reg->setAttr("synth.dataDep", dataDepAttr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
