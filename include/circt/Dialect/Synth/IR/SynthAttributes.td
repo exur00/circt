@@ -97,7 +97,7 @@ def DataDependenciesAttr : AttrDef<SynthDialect, "DataDependencies"> {
 // }
 
 /// An attribute describing an instruction
-def InstrAttribute : AttrDef<SynthDialect, "instr"> {
+def InstrAttribute : AttrDef<SynthDialect, "Instr"> {
   let mnemonic = "instrAttr";
   let summary = "attribute describing an instruction";
   let description = [{TODO}];
