@@ -70,7 +70,7 @@ def DataDependencyEnumAttrImpl: I32EnumAttr<"DataDependencyEnum", "data dependen
 }
 
 def DataDependencyEnumAttr : EnumAttr<SynthDialect, DataDependencyEnumAttrImpl,
-                       "synth_enum_constant",  [TypedAttrInterface]> {
+                       "data_dependency_enum",  [TypedAttrInterface]> {
  let extraClassDeclaration = [{
     mlir::Type getType();
  }];
