@@ -3,6 +3,7 @@ add_circt_dialect_library(CIRCTSynth
   SynthOps.cpp
   SynthTypes.cpp
   SynthAttributes.cpp
+  DependencySemiLattice.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${CIRCT_MAIN_INCLUDE_DIR}/circt/Dialect/Synth/IR
