@@ -389,10 +389,14 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
     attr = synth::StageAttr::get(op->getContext(), synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::Stage), std::stoi(from.getValue().str()), 0);
     op->setAttr("synth.attributeEnum", attr);
   }
+  if (type.compare(OpBuilder(anno.getContext()).getStringAttr("combinational stage")) == 0) {
+    attr = synth::StageAttr::get(op->getContext(), synth::SynthEnumConstAttr::get(op->getContext(), synth::SynthEnumConst::CombinationalStage), std::stoi(from.getValue().str()), 0);
+    op->setAttr("synth.attributeEnum", attr);
+  }
   if (type.compare(OpBuilder(anno.getContext()).getStringAttr("dependant")) == 0) {
     synth::DataDependencyEnum depEnum;
-    if (type.compare(OpBuilder(anno.getContext()).getStringAttr("data")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
-    if (type.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("data")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
     auto enumAttr = synth::DataDependencyEnumAttr::get(op->getContext(), depEnum);
     attr = synth::DataDependenciesAttr::get(op->getContext(), enumAttr);
     op->setAttr("synth.dataDep", attr);
