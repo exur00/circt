@@ -201,7 +201,7 @@ public:
     }
 
     //TODO: match inputs, for each input: mark module side input data dependent by search if instance side is data dependent (kan general voor module : instanceOpInterface)
-    //annotateInputs(fsmInstance, fsm);
+    //annotateInputs(fsmInstance, fsm); // TODO: dit moet dan ook nog eens gebeuren voor elke transition
 
     fsm::StateOp initialState = fsm.getInitialStateOp();
     std::vector<fsm::StateOp> checkedStates = {}; // TODO: gezien search, zou hashset in principe efficienter zijn voor grote hoeveelheid opties
@@ -392,31 +392,29 @@ public:
     }
   }
 
-  bool instrSatisfiesCase(std::string instruction, mlir::Operation *instrCase) {
-    auto attr = instrCase->getAttr("synth.attributeEnum");
+  bool instrSatisfiesCase(std::string instruction, mlir::Operation *instrCaseOp) {
+    auto attr = instrCaseOp->getAttr("synth.instrCase");
     if (!attr) {os << "instruction case missing instruction attribute\n";} //TODO: error
-    auto stageAttr = dyn_cast<StageAttr>(attr);
-    if (!stageAttr) {os << "instruction case missing instruction attribute\n";} // TODO: error
-    //TODO: replace this attribute to capture multiple possible instructions
-    // TODO: make this check proper
-    
-    // for (auto instrAttr : instrAttrArray) {
-    //   if (instrAttr.instruction().getValue() == instruction) { //TODO: bij grouping: vervang dit door .contains ofzo
-    //     return true;
-    //   }
-    // }
+    ArrayAttr instrCaseArrayAttr = dyn_cast<ArrayAttr>(attr);
+    if (!instrCaseArrayAttr) {os << "instruction case missing instruction attribute\n";} // TODO: error
+    auto instrCaseArray = instrCaseArrayAttr.getValue();
+    for (auto atr : instrCaseArray) {
+      if (dyn_cast<InstrAttr>(atr).getInstrName().compare(OpBuilder(instrCaseOp->getContext()).getStringAttr(instruction)) == 0) {//TODO: should check if cast is valid?
+        return true;
+      }
+    }
     return false;
   }
 
   bool analyzeDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) {
-    //TODO: check is OR function
+    //TODO: check is OR function (isa<comb.Or>)
     for (auto op : decisionFunction.getDefiningOp()->getOperands()) {
       //TODO: check is AND function, expect 2 Ops
       auto definingOp = op.getDefiningOp();
       if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
-      auto instrCase = definingOp->getOperand(0).getDefiningOp();
-      if (!instrSatisfiesCase(current_instruction, instrCase)) {continue;}
-      return isDataDependentRecursive(definingOp->getOperand(1).getDefiningOp());
+      auto instrCaseOp = definingOp->getOperand(0).getDefiningOp(); // 1st operand must always be the instruction case
+      if (!instrSatisfiesCase(current_instruction, instrCaseOp)) {continue;}
+      return isDataDependentRecursive(definingOp->getOperand(1).getDefiningOp()); // 2nd (and last) operand must be the other checks
     }
   }
 
