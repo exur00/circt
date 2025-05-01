@@ -99,7 +99,7 @@ public:
     if (dataDependentAnnotation != std::nullopt) {
       return dataDependentAnnotation.value();
     } else {
-      // TODO: add check that if is an unmarked module input / port, it is independent
+      // TODO: add check that if is an unmarked module input / port, it is independent?
       bool inputsDataDependent = false;
       for (Value operand : op->getOperands()) {
         if (isDataDependentRecursive(operand.getDefiningOp())) {inputsDataDependent = true;}
@@ -109,23 +109,23 @@ public:
   }
 
   mlir::Operation *traceBlockArgumentFSM(mlir::Value val) {
-    std::string testString; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
-    // where x is the index of the matching input to the fsm::instanceOp
-    llvm::raw_string_ostream tmpStream = llvm::raw_string_ostream(testString);
-    val.print(tmpStream);
-    auto testNumber = testString.substr(testString.find_last_not_of("0123456789"));
-    auto number = std::stoi(testNumber);
-    return currentFSM.getOperation()->getOperand(number).getDefiningOp();
+    std::string str; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
+    // where x is the index of the matching input to the fsm::HWInstanceOp
+    llvm::raw_string_ostream stream = llvm::raw_string_ostream(str);
+    val.print(stream);
+    auto inputNumString = str.substr(str.find_last_not_of("0123456789"));
+    auto inputNum = std::stoi(inputNumString);
+    return currentFSM.getOperation()->getOperand(inputNum).getDefiningOp();
   }
 
   Dependencies dataDependenciesRecursive(mlir::Operation *op) { 
-    Dependencies deps = Dependencies(); // the empty dependencies
+    Dependencies deps = Dependencies(); // the constant dependencies
     if (isa<hw::ConstantOp>(*op)) {return deps;}
     auto attributeDeps = dependenciesUtils::fromOp(op); // if it is already marked, return that
     if (attributeDeps != std::nullopt) {
       return attributeDeps.value();
     }
-    // TODO: add check that if is an unmarked module input / port, it is independent // really? is that good?
+    // TODO: add check that if is an unmarked module input / port, it is independent // really? is that safe?
     for (Value operand : op->getOperands()) {
       auto defOp = operand.getDefiningOp();
       if (!defOp) {
@@ -134,39 +134,17 @@ public:
       Dependencies operandDeps = dataDependenciesRecursive(defOp);
       deps = Dependencies::leastUpperBound(deps, operandDeps);
     }
-    // TODO: mark current op with deps!
+    markOperation(op, deps);
     return deps;
   }
 
   synth::StageAttr getStageAttr(mlir::Operation *op) {
     auto attr = op->getDiscardableAttr(pipelineAttributeName);
-    if (!attr) {
-        //TODO: error instead of returning
-      }
+    assert(attr);
     synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-    if(!synthAttr) {
-      //TODO: error instead of returning
-    }
+    assert(synthAttr);
     return synthAttr;
   }
-
-  // void annotateInputs(igraph::InstanceOpInterface instance, igraph::ModuleOpInterface module) {
-  //   auto argnames = instance.getArgNames();
-  //   auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
-  //   os << std::to_string(i) << "\n";
-  //   for (Value operand : instance.getOperands()) {
-  //     // TODO: handle clock and reset signals as separate case
-  //     if (Operation *defOp = operand.getDefiningOp()) {
-  //         os << "Operand defined by: ";
-  //         defOp->print(os);
-  //         os << "\n";
-  //       } else {
-  //         os << "Operand is a block argument or undefined:\n";
-  //         operand.print(os);
-  //         os << "\n";
-  //       }
-  //     }
-  // }
 
   bool stageIsCombinational(size_t stageNum) {
     hw::HWModuleOp stage = stages.at(stageNum);
@@ -182,19 +160,15 @@ public:
     
     getOperation().getOperation()->getParentOp()->walk(
       [&](hw::InstanceOp instance) {
-        auto tmp = instance.getInstanceName().str(); // TODO: remove for debugging only
-
         Operation *module;
         mlir::FlatSymbolRefAttr moduleRef = instance.getModuleNameAttr();
         mlir::SymbolTableCollection symTables;
         if (failed(hw::instance_like_impl::verifyReferencedModule(instance.getOperation(), symTables,
                                                             moduleRef, module))) {
           // TODO: error
-          os << "test";
+          os << "error";
         }
         hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(*module);
-        auto tmp3 = moduleOp.getModuleName().str(); // TODO: remove for debugging only
-
         auto tmpAttr = module->getDiscardableAttr(pipelineAttributeName);
           if (tmpAttr != nullptr) {
           synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmpAttr);
@@ -216,8 +190,6 @@ public:
       return std::to_string(stageNumber) + " is combinational";
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
-    //TODO: first find FSM instance+module -> walk FSMOps en voeg toe aan FSMs map?
-    //fsm::HWInstanceOp fsmInstance; //TODO: remave
     stage.walk(
       [&] (fsm::HWInstanceOp instance) {
         currentFSM = instance;
@@ -229,15 +201,12 @@ public:
       return "error, fsm in stage " + std::to_string(stageNumber) + "is invalid or missing";
     }
 
-    //TODO: match inputs, for each input: mark module side input data dependent by search if instance side is data dependent (kan general voor module : instanceOpInterface)
-    //annotateInputs(fsmInstance, fsm); // TODO: dit moet dan ook nog eens gebeuren voor elke transition
-
     fsm::StateOp initialState = fsm.getInitialStateOp();
-    std::vector<fsm::StateOp> checkedStates = {}; // TODO: gezien search, zou hashset in principe efficienter zijn voor grote hoeveelheid opties
+    std::vector<fsm::StateOp> checkedStates = {}; // TODO: this is searched, so with large numbers of operations a hashset could be faster
     std::vector<fsm::StateOp> statesToCheck = {initialState};
 
     while (statesToCheck.size() > 0) {
-      fsm::StateOp currentState = statesToCheck.back(); // TODO: last one because is most efficient?
+      fsm::StateOp currentState = statesToCheck.back();
       statesToCheck.pop_back(); // remove last state from list, we will be checking now.
       checkedStates.push_back(currentState); // mark this state is checked
       os << "currently analyzing state: " << currentState.getName() << "\n";
@@ -251,22 +220,16 @@ public:
           continue;
         }
         mlir::Region &guard = transitionOp.getGuard();
-        auto test = currentState.getOperation(); //TODO: remove
-        auto test2 = transitionOp.getOperation(); //TODO: remove
         auto returnOp = transitionOp.getGuardReturn();
         auto operands = returnOp.getOperation()->getOperands(); // always has 1 operand.
-        //auto decisionFunction = operands[0].getDefiningOp();
         auto transitionDependencies = analyseDecisionFunction(currentInstruction, operands[0]);
         if (transitionDependencies == std::nullopt) {continue;}
-        // TODO: check what decision depends on
-        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n"; //TODO: add dependencies string instead of data
+        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n";
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
         if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
           statesToCheck.push_back(nextState);
         }
       }
-      // TODO: from the found options with their dependencies: launch analysis on those
-      // TODO: keep track of all already checked stages: loops should only be analysed once.
     }
     os << "finished stage " + std::to_string(stageNumber) + " analysis\n";
     return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
@@ -309,10 +272,6 @@ public:
         }
       });
   }
-
-  // void registerAllModules(mlir::Operation *op) {
-  //   symTables.getSymbolTable(op);
-  // }
 
   bool testPipelineValid() {
     // test modules 1..nStages are present
@@ -362,7 +321,7 @@ public:
   }
 
   void propagateRegisterAnnotations() {
-    // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
+    // First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
     for (size_t stage = 2; stage <= nStages; stage++) {
       if (stageIsCombinational(stage)) {continue;}
       hw::InstanceOp instance = stageInstances.at(stage);
@@ -370,42 +329,23 @@ public:
       auto instanceOperands = instance.getOperands();
       auto argnames = instance.getArgNames();
       auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
-	    os << std::to_string(stage) << "\n";
-      //for (Value operand : instance.getOperands()) {
-      for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
+	  os << "propagating register annotations for stage " << std::to_string(stage) << "\n";
+      for (size_t i = 0; i < instanceOperands.size(); i++) {
         auto operand = instanceOperands[i]; // input of instanceOp
         auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
         if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
         if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front(), Dependencies(synth::DataDependencyEnum::Data));} // replace with properly done latice
-      }
-    }
-  }
-
-  void propagateBlockInputsDependencies() {
-    // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
-    for (size_t stage = 2; stage <= nStages; stage++) {
-      if (stageIsCombinational(stage)) {continue;}
-      hw::InstanceOp instance = stageInstances.at(stage);
-      hw::HWModuleOp module = stages.at(stage);
-      auto instanceOperands = instance.getOperands();
-      auto argnames = instance.getArgNames();
-      auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
-	    os << std::to_string(stage) << "\n";
-      //for (Value operand : instance.getOperands()) {
-      for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
-        auto operand = instanceOperands[i]; // input of instanceOp
-        auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
-        if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
-        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front(), Dependencies(DataDependencyEnum::Data));} // replace with lattice
+        //Dependencies deps = dataDependenciesRecursive(operand.getDefiningOp()); // todo: this causes errors later on, why?
+        //markBlockInputUsers(i, module.getBody().front(), deps);
       }
     }
   }
 
   bool instrSatisfiesCase(std::string instruction, mlir::Operation *instrCaseOp) {
     auto attr = instrCaseOp->getAttr(instrCaseName);
-    if (!attr) {os << "instruction case missing instruction attribute\n";} //TODO: error
+    assert (attr && "instruction case missing instruction attribute");
     ArrayAttr instrCaseArrayAttr = dyn_cast<ArrayAttr>(attr);
-    if (!instrCaseArrayAttr) {os << "instruction case missing instruction attribute\n";} // TODO: error
+    assert (instrCaseArrayAttr && "instruction case missing instruction attribute");
     auto instrCaseArray = instrCaseArrayAttr.getValue();
     for (auto atr : instrCaseArray) {
       if (dyn_cast<InstrAttr>(atr).getInstrName().compare(OpBuilder(instrCaseOp->getContext()).getStringAttr(instruction)) == 0) {//TODO: should check if cast is valid?
@@ -415,10 +355,11 @@ public:
     return false;
   }
 
-  std::optional<Dependencies> analyseDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) { // returns optional<dependencies> with nullopt if does not match, and Dependencies object if it does
-    //TODO: check is OR function (isa<comb.Or>)
+  // returns optional<dependencies> with nullopt if does not match, and Dependencies object if it does
+  std::optional<Dependencies> analyseDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) {
+    assert(isa<comb::OrOp>(decisionFunction.getDefiningOp()));
     for (auto op : decisionFunction.getDefiningOp()->getOperands()) {
-      //TODO: check is AND function, expect 2 Ops (iso<comb.AndOp>)
+      assert(isa<comb::AndOp>(op.getDefiningOp()));
       auto definingOp = op.getDefiningOp();
       if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
       auto instrCaseOp = definingOp->getOperand(0).getDefiningOp(); // 1st operand must always be the instruction case
@@ -437,18 +378,16 @@ public:
 void SynthLeakageContractPass::runOnOperation() {
   if (getOperation().getName().str() != processorModule) {return;} // only keep the pass that runs on the processor operation
 
-  //countAllModules(*getOperation()->getBlock(), processorModule);
   registerInstances();
   countAllPipelineRegisters();
 
   propagateRegisterAnnotations();
 
-  //if (!testPipelineValid()) {return;}
+//  if (!testPipelineValid()) {return;}
     
   // now we have identified all pipeline stages and pipeline registers, we can analyse them 1 at a time
   std::string analysis = "";
   for (size_t s = 1; s <= nStages; s++) {
-    //hw::HWModuleOp stage = stages.find(s)->second;
     analysis += analyseStage(s);
     analysis += "\n";
   }
