@@ -47,8 +47,9 @@ public:
 private:
   raw_ostream &os;
 
-  const std::string pipelineAttributeName = "synth.attributeEnum";
+  const std::string pipelineAttributeName = "synth.attributeEnum"; //TODO: horen deze hier of bij hun definitie?
   const std::string dataDepAttributeName = "synth.dataDep";
+  const std::string instrCaseName = "synth.instrCase";
 
   DenseMap<size_t, hw::HWModuleOp> stages;
   DenseMap<size_t, hw::InstanceOp> stageInstances;
@@ -104,6 +105,21 @@ public:
       }
       return inputsDataDependent;
     }    
+  }
+
+  Dependencies dataDependenciesRecursive(mlir::Operation *op) { 
+    Dependencies deps = Dependencies(); // the empty dependencies
+    if (isa<hw::ConstantOp>(*op)) {return deps;}
+    auto attributeDeps = dependenciesUtils::fromOp(op); // if it is already marked, return that
+    if (attributeDeps != std::nullopt) {
+      return attributeDeps.value();
+    }
+    // TODO: add check that if is an unmarked module input / port, it is independent // really? is that good?
+    for (Value operand : op->getOperands()) {
+      Dependencies operandDeps = dataDependenciesRecursive(operand.getDefiningOp());
+      deps = Dependencies::leastUpperBound(deps, operandDeps);
+    }
+    return deps;
   }
 
   synth::StageAttr getStageAttr(mlir::Operation *op) {
@@ -175,11 +191,6 @@ public:
           }
       });
   }
-  
-  bool transitionMatchesInstruction(mlir::Operation *op, std::string instruction) {
-    // assumptions: either is marked with instruction(s), or is AND case, of which first operand is marked with instruction(s)
-    return true; //TODO: implement
-  }
 
   std::string analyseStage(size_t stageNumber) {
     os << "analyzing stage " << stageNumber << "\n";
@@ -224,12 +235,15 @@ public:
           continue;
         }
         mlir::Region &guard = transitionOp.getGuard();
+        auto test = currentState.getOperation(); //TODO: remove
+        auto test2 = transitionOp.getOperation(); //TODO: remove
         auto returnOp = transitionOp.getGuardReturn();
         auto operands = returnOp.getOperation()->getOperands(); // always has 1 operand.
-        auto decisionFunction = operands[0].getDefiningOp();
-        if (!transitionMatchesInstruction(decisionFunction, currentInstruction)) {continue;}
+        //auto decisionFunction = operands[0].getDefiningOp();
+        auto transitionDependencies = analyseDecisionFunction(currentInstruction, operands[0]);
+        if (transitionDependencies == std::nullopt) {continue;}
         // TODO: check what decision depends on
-        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << "data" << "\n"; //TODO: add dependent
+        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n"; //TODO: add dependencies string instead of data
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
         if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
           statesToCheck.push_back(nextState);
@@ -251,26 +265,11 @@ public:
             stages[fromStage] = module;
             if (fromStage > nStages) {nStages = fromStage;}
       		os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
-          //symTables.getSymbolTable(module);
-          //os << "added module to symbolTable\n";
       		return;
     	}
     }
     os << "registered module " << module.getName().str() << " is not a stage" << "\n";
   }
-
-//  void countAllModules(mlir::Block &block, std::string toplevelName) {
-//    for ( mlir::Operation &op : block.getOperations()) {
-//      hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(op);
-//      if (moduleOp) {
-//        if(moduleOp.getName().str() == toplevelName) {
-//        	processorModuleOp = moduleOp;
-//        } else {
-//        	countModule(moduleOp);
-//        }
-//      }
-//    }
-//  }
 
   void addPipelineRegister(seq::FirRegOp reg, size_t fromStage, synth::SynthEnumConst enumValue) {
     pipelineRegisters[fromStage].push_back({reg, enumValue});
@@ -360,8 +359,28 @@ public:
     }
   }
 
+  void propagateBlockInputsDependencies() {
+    // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
+    for (size_t stage = 2; stage <= nStages; stage++) {
+      if (stageIsCombinational(stage)) {continue;}
+      hw::InstanceOp instance = stageInstances.at(stage);
+      hw::HWModuleOp module = stages.at(stage);
+      auto instanceOperands = instance.getOperands();
+      auto argnames = instance.getArgNames();
+      auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
+	    os << std::to_string(stage) << "\n";
+      //for (Value operand : instance.getOperands()) {
+      for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
+        auto operand = instanceOperands[i]; // input of instanceOp
+        auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
+        if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
+        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());} // replace with lattice
+      }
+    }
+  }
+
   bool instrSatisfiesCase(std::string instruction, mlir::Operation *instrCaseOp) {
-    auto attr = instrCaseOp->getAttr("synth.instrCase");
+    auto attr = instrCaseOp->getAttr(instrCaseName);
     if (!attr) {os << "instruction case missing instruction attribute\n";} //TODO: error
     ArrayAttr instrCaseArrayAttr = dyn_cast<ArrayAttr>(attr);
     if (!instrCaseArrayAttr) {os << "instruction case missing instruction attribute\n";} // TODO: error
@@ -374,16 +393,17 @@ public:
     return false;
   }
 
-  bool analyzeDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) {
+  std::optional<Dependencies> analyseDecisionFunction(std::string current_instruction, mlir::Value decisionFunction) { // returns optional<dependencies> with nullopt if does not match, and Dependencies object if it does
     //TODO: check is OR function (isa<comb.Or>)
     for (auto op : decisionFunction.getDefiningOp()->getOperands()) {
-      //TODO: check is AND function, expect 2 Ops
+      //TODO: check is AND function, expect 2 Ops (iso<comb.AndOp>)
       auto definingOp = op.getDefiningOp();
       if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
       auto instrCaseOp = definingOp->getOperand(0).getDefiningOp(); // 1st operand must always be the instruction case
       if (!instrSatisfiesCase(current_instruction, instrCaseOp)) {continue;}
-      return isDataDependentRecursive(definingOp->getOperand(1).getDefiningOp()); // 2nd (and last) operand must be the other checks
+      return dataDependenciesRecursive(definingOp->getOperand(1).getDefiningOp()); // 2nd (and last) operand must be the other checks
     }
+    return std::nullopt;
   }
 
   };
