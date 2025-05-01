@@ -61,7 +61,8 @@ private:
   //DenseMap<std::string, std::string> instructions;
   hw::HWModuleOp processorModuleOp;
   size_t nStages = 0;
-  std::string currentInstruction = "ADD"; //TODO: replace by some way to loop for all instructions
+  std::string currentInstruction = "MUL"; //TODO: replace by some way to loop for all instructions
+  fsm::HWInstanceOp currentFSM;
 
 public:
 
@@ -107,6 +108,16 @@ public:
     }    
   }
 
+  mlir::Operation *traceBlockArgumentFSM(mlir::Value val) {
+    std::string testString; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
+    // where x is the index of the matching input to the fsm::instanceOp
+    llvm::raw_string_ostream tmpStream = llvm::raw_string_ostream(testString);
+    val.print(tmpStream);
+    auto testNumber = testString.substr(testString.find_last_not_of("0123456789"));
+    auto number = std::stoi(testNumber);
+    return currentFSM.getOperation()->getOperand(number).getDefiningOp();
+  }
+
   Dependencies dataDependenciesRecursive(mlir::Operation *op) { 
     Dependencies deps = Dependencies(); // the empty dependencies
     if (isa<hw::ConstantOp>(*op)) {return deps;}
@@ -116,9 +127,14 @@ public:
     }
     // TODO: add check that if is an unmarked module input / port, it is independent // really? is that good?
     for (Value operand : op->getOperands()) {
-      Dependencies operandDeps = dataDependenciesRecursive(operand.getDefiningOp());
+      auto defOp = operand.getDefiningOp();
+      if (!defOp) {
+        defOp = traceBlockArgumentFSM(operand);
+      }
+      Dependencies operandDeps = dataDependenciesRecursive(defOp);
       deps = Dependencies::leastUpperBound(deps, operandDeps);
     }
+    // TODO: mark current op with deps!
     return deps;
   }
 
@@ -201,13 +217,13 @@ public:
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
     //TODO: first find FSM instance+module -> walk FSMOps en voeg toe aan FSMs map?
-    fsm::HWInstanceOp fsmInstance;
+    //fsm::HWInstanceOp fsmInstance; //TODO: remave
     stage.walk(
       [&] (fsm::HWInstanceOp instance) {
-        fsmInstance = instance;
+        currentFSM = instance;
       }
     );
-    fsm::MachineOp fsm = fsmInstance.getMachineOp();
+    fsm::MachineOp fsm = currentFSM.getMachineOp();
     if (!fsm) {
       os << "error, fsm in stage " << stageNumber << "is invalid or missing";
       return "error, fsm in stage " + std::to_string(stageNumber) + "is invalid or missing";
@@ -325,17 +341,23 @@ public:
     }
   }
 
-  void markOperation(mlir::Operation *user) {// TODO: add argument what to mark it
-    SynthEnumConstAttr enumAttr = SynthEnumConstAttr::get(user->getContext(), SynthEnumConst::DataSignal); // TODO assign value based to mark based on argument
-    auto attr = synth::StageAttr::get(user->getContext(), enumAttr, 0, 0);
-    user->setAttr(pipelineAttributeName, attr);
-    //TODO: check if already marked, if so mark as least upper bound of those values
+  void markOperation(mlir::Operation *user, Dependencies deps) {
+    auto currentDepsOpt = dependenciesUtils::fromOp(user);
+    Dependencies currentDeps;
+    if (currentDepsOpt == std::nullopt) {
+      currentDeps = Dependencies();
+    } else {
+      currentDeps = currentDepsOpt.value();
+    }
+    Dependencies newDeps = Dependencies::leastUpperBound(currentDeps, deps);
+    auto attr = dependenciesUtils::asAttribute(user->getContext(), newDeps);
+    user->setDiscardableAttr(dataDepAttributeName, attr);
   }
 
-  void markBlockInputUsers(size_t inputNumber, mlir::Block &block) { // TODO: add argument what to mark.
+  void markBlockInputUsers(size_t inputNumber, mlir::Block &block, Dependencies deps) {
     mlir::Value::user_range users = block.getArgument(inputNumber).getUsers();
     for (mlir::Operation *user : users) {
-      markOperation(user);
+      markOperation(user, deps);
     }
   }
 
@@ -354,7 +376,7 @@ public:
         auto operand = instanceOperands[i]; // input of instanceOp
         auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
         if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
-        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());} // replace with lattice
+        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front(), Dependencies(synth::DataDependencyEnum::Data));} // replace with properly done latice
       }
     }
   }
@@ -374,7 +396,7 @@ public:
         auto operand = instanceOperands[i]; // input of instanceOp
         auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
         if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
-        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());} // replace with lattice
+        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front(), Dependencies(DataDependencyEnum::Data));} // replace with lattice
       }
     }
   }
@@ -401,7 +423,10 @@ public:
       if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
       auto instrCaseOp = definingOp->getOperand(0).getDefiningOp(); // 1st operand must always be the instruction case
       if (!instrSatisfiesCase(current_instruction, instrCaseOp)) {continue;}
-      return dataDependenciesRecursive(definingOp->getOperand(1).getDefiningOp()); // 2nd (and last) operand must be the other checks
+      Value otherRequirementsValue = definingOp->getOperand(1);
+      auto otherRequirements = otherRequirementsValue.getDefiningOp();
+      if (!otherRequirements) {otherRequirements = traceBlockArgumentFSM(otherRequirementsValue);}
+      return dataDependenciesRecursive(otherRequirements);// 2nd (and last) operand must be the other checks
     }
     return std::nullopt;
   }
