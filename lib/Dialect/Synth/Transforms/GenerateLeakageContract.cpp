@@ -14,6 +14,7 @@
 #include "circt/Dialect/Comb/CombOps.h"
 #include "circt/Dialect/Synth/SynthPasses.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
+#include "circt/Dialect/Synth/IR/DependencySemiLattice.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/HW/HWInstanceImplementation.h"
 #include "circt/Dialect/FSM/FSMOps.h"
@@ -37,7 +38,6 @@ namespace synth {
 using namespace circt;
 using namespace synth;
 namespace {
-// A test pass that simply replaces all wire names with myfoo_<n>
 struct SynthLeakageContractPass : public circt::synth::impl::SynthGenerateLeakageContractBase<SynthLeakageContractPass> {
 public:
   SynthLeakageContractPass(std::string processorModuleName, llvm::raw_ostream &os) : os(os) {
@@ -47,6 +47,8 @@ public:
 private:
   raw_ostream &os;
 
+  const std::string pipelineAttributeName = "synth.attributeEnum";
+  const std::string dataDepAttributeName = "synth.dataDep";
 
   DenseMap<size_t, hw::HWModuleOp> stages;
   DenseMap<size_t, hw::InstanceOp> stageInstances;
@@ -62,27 +64,27 @@ private:
 
 public:
 
-  std::optional<synth::SynthEnumConst> getDataAttribute(mlir::Operation *op) {
-    auto attr = op->getDiscardableAttr("synth.attributeEnum");
+  std::optional<synth::DataDependencyEnum> getDataAttribute(mlir::Operation *op) {
+    auto attr = op->getDiscardableAttr(dataDepAttributeName);
     if (!attr) {return std::nullopt;}
-    synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
+    synth::DataDependenciesAttr synthAttr = dyn_cast<DataDependenciesAttr>(attr);
     if (!synthAttr) {return std::nullopt;}
-    return synthAttr.getEnumAttr().getValue();
+    return synthAttr.getDataDepEnum().getValue();
   }
 
   std::optional<bool> isDataDependent(mlir::Operation *op) {
     auto attr = getDataAttribute(op);
     if (attr == std::nullopt) {return std::nullopt;}
-    SynthEnumConst dataEnum = attr.value();
+    DataDependencyEnum dataEnum = attr.value();
     switch(dataEnum) {
-      case SynthEnumConst::DataSignal:
+      case DataDependencyEnum::Data:
         return true;
-      case SynthEnumConst::InstrSignal:
+      case DataDependencyEnum::Instruction:
         return false;
-      case SynthEnumConst::ConstantSignal:
-        return false;
-      case SynthEnumConst::ExternalSignal:
-        return false;
+//      case DataDependencyEnum::ConstantSignal:
+//        return false;
+//      case DataDependencyEnum::ExternalSignal:
+//        return false;
       default:
         os << "unknown signal at:\n";
         op->print(os);
@@ -105,7 +107,7 @@ public:
   }
 
   synth::StageAttr getStageAttr(mlir::Operation *op) {
-    auto attr = op->getDiscardableAttr("synth.attributeEnum");
+    auto attr = op->getDiscardableAttr(pipelineAttributeName);
     if (!attr) {
         //TODO: error instead of returning
       }
@@ -136,7 +138,7 @@ public:
 
   bool stageIsCombinational(size_t stageNum) {
     hw::HWModuleOp stage = stages.at(stageNum);
-    auto attr = stage->getDiscardableAttr("synth.attributeEnum");
+    auto attr = stage->getDiscardableAttr(pipelineAttributeName);
     if (!attr) {return false;}
     synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
     if (!synthAttr) {return false;}
@@ -161,7 +163,7 @@ public:
         hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(*module);
         auto tmp3 = moduleOp.getModuleName().str(); // TODO: remove for debugging only
 
-        auto tmpAttr = module->getDiscardableAttr("synth.attributeEnum");
+        auto tmpAttr = module->getDiscardableAttr(pipelineAttributeName);
           if (tmpAttr != nullptr) {
           synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmpAttr);
             if (attr) {
@@ -227,7 +229,7 @@ public:
         auto decisionFunction = operands[0].getDefiningOp();
         if (!transitionMatchesInstruction(decisionFunction, currentInstruction)) {continue;}
         // TODO: check what decision depends on
-        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << "" << "\n"; //TODO: add dependent
+        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << "data" << "\n"; //TODO: add dependent
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
         if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
           statesToCheck.push_back(nextState);
@@ -241,7 +243,7 @@ public:
   }
 
   void countModule(hw::HWModuleOp module) {
-    auto tmp = module.getOperation()->getDiscardableAttr("synth.attributeEnum");
+    auto tmp = module.getOperation()->getDiscardableAttr(pipelineAttributeName);
     if (tmp != nullptr) {
 		synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmp);
     	if (attr) {
@@ -279,7 +281,7 @@ public:
 
     getOperation().walk(
       [&](seq::FirRegOp reg) {
-        mlir::Attribute attr = reg.getOperation()->getDiscardableAttr("synth.attributeEnum");
+        mlir::Attribute attr = reg.getOperation()->getDiscardableAttr(pipelineAttributeName);
         if (attr) {
           synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
           if (synthAttr) {
@@ -327,7 +329,7 @@ public:
   void markOperation(mlir::Operation *user) {// TODO: add argument what to mark it
     SynthEnumConstAttr enumAttr = SynthEnumConstAttr::get(user->getContext(), SynthEnumConst::DataSignal); // TODO assign value based to mark based on argument
     auto attr = synth::StageAttr::get(user->getContext(), enumAttr, 0, 0);
-    user->setAttr("synth.attributeEnum", attr);
+    user->setAttr(pipelineAttributeName, attr);
     //TODO: check if already marked, if so mark as least upper bound of those values
   }
 
@@ -340,55 +342,21 @@ public:
 
   void propagateRegisterAnnotations() {
     // TODO: First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
-    for (size_t i = 2; i <= nStages; i++) {
-      hw::InstanceOp instance = stageInstances.at(i);
-      hw::HWModuleOp module = stages.at(i);
+    for (size_t stage = 2; stage <= nStages; stage++) {
+      if (stageIsCombinational(stage)) {continue;}
+      hw::InstanceOp instance = stageInstances.at(stage);
+      hw::HWModuleOp module = stages.at(stage);
       auto instanceOperands = instance.getOperands();
       auto argnames = instance.getArgNames();
       auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
-	    os << std::to_string(i) << "\n";
+	    os << std::to_string(stage) << "\n";
       //for (Value operand : instance.getOperands()) {
       for (size_t i = 0; i < instanceOperands.size(); i++) { // TODO: start from 2 to ignore clock and reset signal?
         auto operand = instanceOperands[i]; // input of instanceOp
+        auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
+        if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
         if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front());} // replace with lattice
-
-        //auto port = module.getPort(module.getPortIdForInputId(i)); // TODO: kijk waar je uitkomt met het terugkeren naar operanden vanuit de module.
-        // auto& block = module.getBody().front(); // TODO: getBody should return a block (because HWModuleOp has the SingleBlock trait) but returns a region
-        // mlir::Value blockInput = block.getArgument(i); // matching input inside moduleOp
-        // auto users = blockInput.getUsers();
-        // propagateAnnotations(operand, users);
-        // for (auto user : users) {
-        //   user->dump();
-        // }
-
-
-        // //TODO: remove, just for a test
-        // module.walk(
-        //   [&](comb::ICmpOp op) {
-        //     mlir::Attribute attr = op.getOperation()->getDiscardableAttr("synth.attributeEnum");
-        //     auto tmp = op.getOperation();
-        //     if (attr) {
-        //       synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-        //       if (synthAttr) {
-        //         size_t fromStage = synthAttr.getFromStage();
-        //         size_t toStage = synthAttr.getToStage();
-        //         synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
-        //       }
-        //     }
-        //   }
-        // );
-
-        // TODO: handle clock and reset signals as separate case
-        if (Operation *defOp = operand.getDefiningOp()) {
-            os << "Operand defined by: ";
-            defOp->print(os);
-            os << "\n";
-          } else {
-            os << "Operand is a block argument or undefined:\n";
-            operand.print(os);
-            os << "\n";
-          }
-        }
+      }
     }
   }
 
