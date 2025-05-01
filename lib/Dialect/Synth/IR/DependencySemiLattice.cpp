@@ -38,7 +38,7 @@ namespace synth {
     synth::Dependencies Dependencies::leastUpperBound(Dependencies a, Dependencies b) {
         std::set<synth::DataDependencyEnum> result = {};
         result.insert(a.dependencies.begin(), a.dependencies.end());
-        result.insert(b.dependencies.begin(), a.dependencies.end());
+        result.insert(b.dependencies.begin(), b.dependencies.end());
         return Dependencies(result);
     }
 
