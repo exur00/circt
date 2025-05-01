@@ -27,6 +27,14 @@ namespace synth {
         this->dependencies = {};
         this->dependencies.insert(dependencies.begin(), dependencies.end());
     }
+    std::string Dependencies::toString(){
+        std::string result = "[";
+        for (synth::DataDependencyEnum dep: dependencies) {
+            result += stringifyDataDependencyEnum(dep).str();
+            result += ",";
+        }
+        return (result + "]");
+    }
     synth::Dependencies Dependencies::leastUpperBound(Dependencies a, Dependencies b) {
         std::set<synth::DataDependencyEnum> result = {};
         result.insert(a.dependencies.begin(), a.dependencies.end());
@@ -40,20 +48,16 @@ namespace synth {
         return enumAttr;
     }
 
-    Dependencies fromAttribute(DataDependencyEnumAttr attr) { //TODO: add function that also does cast?
+    Dependencies dependenciesUtils::fromAttribute(DataDependencyEnumAttr attr) { //TODO: add function that also does cast?
         DataDependencyEnum e = attr.getValue();
         return Dependencies(e);
     }
 
-    Dependencies fromOp(mlir::Operation op) {
-        mlir::Attribute attr = op.getDiscardableAttr("synth.dataDep");
-        if (!attr) {
-            //TODO: error
-        }
+    std::optional<Dependencies> dependenciesUtils::fromOp(mlir::Operation *op) {
+        mlir::Attribute attr = op->getDiscardableAttr("synth.dataDep");
+        if (!attr) {return std::nullopt;}
         auto castAttr = llvm::dyn_cast<DataDependencyEnumAttr>(attr);
-        if (!castAttr) {
-            //TODO: error
-        }
+        if (!castAttr) {return std::nullopt;}
         return fromAttribute(castAttr);
     }
 
