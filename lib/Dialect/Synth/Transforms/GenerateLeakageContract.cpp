@@ -74,40 +74,6 @@ public:
     return synthAttr.getDataDepEnum().getValue();
   }
 
-  std::optional<bool> isDataDependent(mlir::Operation *op) {
-    auto attr = getDataAttribute(op);
-    if (attr == std::nullopt) {return std::nullopt;}
-    DataDependencyEnum dataEnum = attr.value();
-    switch(dataEnum) {
-      case DataDependencyEnum::Data:
-        return true;
-      case DataDependencyEnum::Instruction:
-        return false;
-//      case DataDependencyEnum::ConstantSignal:
-//        return false;
-//      case DataDependencyEnum::ExternalSignal:
-//        return false;
-      default:
-        os << "unknown signal at:\n";
-        op->print(os);
-    }
-  }
-
-  bool isDataDependentRecursive(mlir::Operation *op) {
-    if (isa<hw::ConstantOp>(*op)) {return false;}
-    auto dataDependentAnnotation = isDataDependent(op);
-    if (dataDependentAnnotation != std::nullopt) {
-      return dataDependentAnnotation.value();
-    } else {
-      // TODO: add check that if is an unmarked module input / port, it is independent?
-      bool inputsDataDependent = false;
-      for (Value operand : op->getOperands()) {
-        if (isDataDependentRecursive(operand.getDefiningOp())) {inputsDataDependent = true;}
-      }
-      return inputsDataDependent;
-    }    
-  }
-
   mlir::Operation *traceBlockArgumentFSM(mlir::Value val) {
     std::string str; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
     // where x is the index of the matching input to the fsm::HWInstanceOp
@@ -334,9 +300,8 @@ public:
         auto operand = instanceOperands[i]; // input of instanceOp
         auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
         if (operandName == "clock" || operandName == "reset") {continue;} // skip analysis for clock and reset signal
-        if (isDataDependentRecursive(operand.getDefiningOp())) {markBlockInputUsers(i, module.getBody().front(), Dependencies(synth::DataDependencyEnum::Data));} // replace with properly done latice
-        //Dependencies deps = dataDependenciesRecursive(operand.getDefiningOp()); // todo: this causes errors later on, why?
-        //markBlockInputUsers(i, module.getBody().front(), deps);
+        Dependencies deps = dataDependenciesRecursive(operand.getDefiningOp());
+        markBlockInputUsers(i, module.getBody().front(), deps);
       }
     }
   }
@@ -383,7 +348,7 @@ void SynthLeakageContractPass::runOnOperation() {
 
   propagateRegisterAnnotations();
 
-//  if (!testPipelineValid()) {return;}
+//  if (!testPipelineValid()) {return;} //remove?
     
   // now we have identified all pipeline stages and pipeline registers, we can analyse them 1 at a time
   std::string analysis = "";
