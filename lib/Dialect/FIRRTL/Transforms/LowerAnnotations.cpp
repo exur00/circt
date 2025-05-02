@@ -397,6 +397,7 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
     synth::DataDependencyEnum depEnum;
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("data")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("data value")) == 0) {depEnum = synth::DataDependencyEnum::DataValue;}
     auto enumAttr = synth::DataDependencyEnumAttr::get(op->getContext(), depEnum);
     attr = synth::DataDependenciesAttr::get(op->getContext(), enumAttr);
     op->setAttr("synth.dataDep", attr);

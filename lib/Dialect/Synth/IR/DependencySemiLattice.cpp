@@ -43,9 +43,13 @@ namespace synth {
     }
 
     mlir::Attribute dependenciesUtils::asAttribute(mlir::MLIRContext *context, Dependencies deps) {
-        auto depEnum = *deps.dependencies.begin(); // TODO: replace to make list attribute, and put all of them in
-        auto enumAttr = synth::DataDependencyEnumAttr::get(context, depEnum);
-        return enumAttr;
+        std::vector<mlir::Attribute> attrs = {};
+        for (auto depEnum : deps.dependencies) {
+            attrs.push_back(synth::DataDependencyEnumAttr::get(context, depEnum));
+        }
+        mlir::ArrayRef<mlir::Attribute> arrRef = mlir::ArrayRef(attrs);
+        auto arrayAttr = mlir::ArrayAttr::get(context, arrRef);
+        return arrayAttr
     }
 
     Dependencies dependenciesUtils::fromAttribute(DataDependencyEnumAttr attr) { //TODO: add function that also does cast?

@@ -77,7 +77,10 @@ public:
     return currentFSM.getOperation()->getOperand(inputNum).getDefiningOp();
   }
 
-  Dependencies dataDependenciesRecursive(mlir::Operation *op) { 
+  Dependencies dataDependenciesRecursive(mlir::Operation *op) {
+    if (op->getName().getStringRef().str() == "hw.instance") {
+      os << "test";
+    }
     Dependencies deps = Dependencies(); // the constant dependencies
     if (isa<hw::ConstantOp>(*op)) {return deps;}
     auto attributeDeps = dependenciesUtils::fromOp(op); // if it is already marked, return that
@@ -244,7 +247,7 @@ public:
     }
   }
 
-  void markOperation(mlir::Operation *user, Dependencies deps) {
+  void markOperation(mlir::Operation *user, Dependencies deps) { //TODO: this behaviour is not necessarily ideal. when propagating we want to combine the propagated signals, but if an annotation was already present, we do not want to add anything, because present beforehand means that it was manually added
     auto currentDepsOpt = dependenciesUtils::fromOp(user);
     Dependencies currentDeps;
     if (currentDepsOpt == std::nullopt) {
@@ -253,6 +256,9 @@ public:
       currentDeps = currentDepsOpt.value();
     }
     Dependencies newDeps = Dependencies::leastUpperBound(currentDeps, deps);
+    if (user->getName().getStringRef().str() == "hw.instance") {
+      os << "test";
+    }
     auto attr = dependenciesUtils::asAttribute(user->getContext(), newDeps);
     user->setDiscardableAttr(dataDepAttributeName, attr);
   }
