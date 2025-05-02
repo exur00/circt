@@ -66,14 +66,6 @@ private:
 
 public:
 
-  std::optional<synth::DataDependencyEnum> getDataAttribute(mlir::Operation *op) {
-    auto attr = op->getDiscardableAttr(dataDepAttributeName);
-    if (!attr) {return std::nullopt;}
-    synth::DataDependenciesAttr synthAttr = dyn_cast<DataDependenciesAttr>(attr);
-    if (!synthAttr) {return std::nullopt;}
-    return synthAttr.getDataDepEnum().getValue();
-  }
-
   mlir::Operation *traceBlockArgumentFSM(mlir::Value val) {
     std::string str; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
     // where x is the index of the matching input to the fsm::HWInstanceOp
@@ -104,26 +96,22 @@ public:
     return deps;
   }
 
-  synth::StageAttr getStageAttr(mlir::Operation *op) {
+  std::optional<synth::StageAttr> getStageAttr(mlir::Operation *op) {
     auto attr = op->getDiscardableAttr(pipelineAttributeName);
-    assert(attr);
+    if (!attr) {return std::nullopt;}
     synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-    assert(synthAttr);
+    if (!synthAttr) {return std::nullopt;}
     return synthAttr;
   }
 
   bool stageIsCombinational(size_t stageNum) {
     hw::HWModuleOp stage = stages.at(stageNum);
-    auto attr = stage->getDiscardableAttr(pipelineAttributeName);
-    if (!attr) {return false;}
-    synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-    if (!synthAttr) {return false;}
-    return (synthAttr.getEnumAttr().getValue() == SynthEnumConst::CombinationalStage);
+    auto attr = getStageAttr(stage);
+    if (attr == std::nullopt) {return false;}
+    return attr.value().getEnumAttr().getValue() == SynthEnumConst::CombinationalStage;
   }
 
   void registerInstances() {
-    mlir::SymbolTableCollection symTables;
-    
     getOperation().getOperation()->getParentOp()->walk(
       [&](hw::InstanceOp instance) {
         Operation *module;
@@ -135,16 +123,13 @@ public:
           os << "error";
         }
         hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(*module);
-        auto tmpAttr = module->getDiscardableAttr(pipelineAttributeName);
-          if (tmpAttr != nullptr) {
-          synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmpAttr);
-            if (attr) {
-                size_t fromStage = attr.getFromStage();
-                stageInstances[fromStage] = instance;
-                os << "registered stageInstance for module " << moduleOp.getModuleName().str() << " as stage number " << std::to_string(fromStage) << "\n";
-                countModule(moduleOp);
-            }
-          }
+        auto attr = getStageAttr(moduleOp);
+        if (attr != std::nullopt) {
+          size_t fromStage = attr.value().getFromStage();
+          stageInstances[fromStage] = instance;
+          os << "registered stageInstance for module " << moduleOp.getModuleName().str() << " as stage number " << std::to_string(fromStage) << "\n";
+          countModule(moduleOp);
+        }
       });
   }
 
@@ -202,16 +187,13 @@ public:
   }
 
   void countModule(hw::HWModuleOp module) {
-    auto tmp = module.getOperation()->getDiscardableAttr(pipelineAttributeName);
-    if (tmp != nullptr) {
-		synth::StageAttr attr = dyn_cast<synth::StageAttr>(tmp);
-    	if (attr) {
-      		size_t fromStage = attr.getFromStage();
-            stages[fromStage] = module;
-            if (fromStage > nStages) {nStages = fromStage;}
-      		os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
-      		return;
-    	}
+    auto attr = getStageAttr(module);
+    if (attr != std::nullopt) {
+      size_t fromStage = attr.value().getFromStage();
+        stages[fromStage] = module;
+        if (fromStage > nStages) {nStages = fromStage;}
+      os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
+      return;
     }
     os << "registered module " << module.getName().str() << " is not a stage" << "\n";
   }
@@ -225,16 +207,14 @@ public:
 
     getOperation().walk(
       [&](seq::FirRegOp reg) {
-        mlir::Attribute attr = reg.getOperation()->getDiscardableAttr(pipelineAttributeName);
-        if (attr) {
-          synth::StageAttr synthAttr = dyn_cast<StageAttr>(attr);
-          if (synthAttr) {
-            size_t fromStage = synthAttr.getFromStage();
-            size_t toStage = synthAttr.getToStage();
-            synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
-            if (toStage != fromStage + 1) {return;} // TODO: throw error, invalid register configuration
-            addPipelineRegister(reg, fromStage, enumValue);
-          }
+        auto attr = getStageAttr(reg);
+        if (attr != std::nullopt) {
+          auto synthAttr = attr.value();
+          size_t fromStage = synthAttr.getFromStage();
+          size_t toStage = synthAttr.getToStage();
+          synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
+          if (toStage != fromStage + 1) {return;} // TODO: throw error, invalid register configuration
+          addPipelineRegister(reg, fromStage, enumValue);
         }
       });
   }
