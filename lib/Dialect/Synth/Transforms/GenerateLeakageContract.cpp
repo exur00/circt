@@ -117,11 +117,8 @@ public:
         Operation *module;
         mlir::FlatSymbolRefAttr moduleRef = instance.getModuleNameAttr();
         mlir::SymbolTableCollection symTables;
-        if (failed(hw::instance_like_impl::verifyReferencedModule(instance.getOperation(), symTables,
-                                                            moduleRef, module))) {
-          // TODO: error
-          os << "error";
-        }
+        assert(succeeded(hw::instance_like_impl::verifyReferencedModule(instance.getOperation(), symTables,
+        moduleRef, module)) && "instance-module reference invalid");
         hw::HWModuleOp moduleOp = dyn_cast<hw::HWModuleOp>(*module);
         auto attr = getStageAttr(moduleOp);
         if (attr != std::nullopt) {
@@ -165,7 +162,7 @@ public:
       mlir::Region &transitions = currentState.getTransitions();
       for (auto &transition : transitions.front().getOperations()) {
         fsm::TransitionOp transitionOp = dyn_cast<fsm::TransitionOp>(transition);
-        if (!transitionOp) {os << "\terror: expected TransitionOp";} //TODO: error
+        assert(transitionOp && "expected TransitionOp");
         if (!transitionOp.hasGuard()) {
           os << "\ttransition to: " << transitionOp.getNextState() << " without guard\n";
           continue;
@@ -213,7 +210,7 @@ public:
           size_t fromStage = synthAttr.getFromStage();
           size_t toStage = synthAttr.getToStage();
           synth::SynthEnumConst enumValue = synthAttr.getEnumAttr().getValue();
-          if (toStage != fromStage + 1) {return;} // TODO: throw error, invalid register configuration
+          assert(toStage == fromStage + 1 && "fromStage must match toStage + 1");
           addPipelineRegister(reg, fromStage, enumValue);
         }
       });
@@ -306,7 +303,7 @@ public:
     for (auto op : decisionFunction.getDefiningOp()->getOperands()) {
       assert(isa<comb::AndOp>(op.getDefiningOp()));
       auto definingOp = op.getDefiningOp();
-      if (definingOp->getNumOperands() != 2) {os << "decision function 2nd level AND does not have 2 operands";} // TODO: error
+      assert(definingOp->getNumOperands() == 2 && "decision function 2nd level AND must exactly have 2 operands");
       auto instrCaseOp = definingOp->getOperand(0).getDefiningOp(); // 1st operand must always be the instruction case
       if (!instrSatisfiesCase(current_instruction, instrCaseOp)) {continue;}
       Value otherRequirementsValue = definingOp->getOperand(1);
