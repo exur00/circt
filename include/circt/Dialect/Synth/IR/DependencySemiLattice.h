@@ -16,7 +16,7 @@ namespace synth {
         std::set<synth::DataDependencyEnum> dependencies;
         Dependencies();
         Dependencies(synth::DataDependencyEnum dependency);
-        Dependencies(std::vector<synth::DataDependencyEnum> dependencies);
+        Dependencies(std::vector<synth::DataDependencyEnum> &dependencies);
         Dependencies(std::set<synth::DataDependencyEnum> dependencies);
         std::string toString();
         synth::Dependencies static leastUpperBound(Dependencies a, Dependencies b); //TODO: make static!
@@ -25,6 +25,8 @@ namespace synth {
     namespace dependenciesUtils {
         mlir::Attribute asAttribute(mlir::MLIRContext *context, Dependencies deps);
         Dependencies fromAttribute(DataDependencyEnumAttr attr);
+        Dependencies fromAttribute(DataDependenciesAttr attr);
+        Dependencies fromAttributeArray(mlir::ArrayAttr attr);
         std::optional<Dependencies> fromOp(mlir::Operation *op);
         // void markOp(Dependencies deps, mlir::Operation op);
         // void addDependanciesToOp (Dependencies deps, mlir::Operation op);

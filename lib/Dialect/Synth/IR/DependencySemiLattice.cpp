@@ -19,7 +19,7 @@ namespace synth {
     Dependencies::Dependencies(synth::DataDependencyEnum dependency) {
         dependencies = {dependency};
     }
-    Dependencies::Dependencies(std::vector<synth::DataDependencyEnum> dependencies) {
+    Dependencies::Dependencies(std::vector<synth::DataDependencyEnum> &dependencies) {
         this->dependencies = {};
         this->dependencies.insert(dependencies.begin(), dependencies.end());
     }
@@ -53,12 +53,34 @@ namespace synth {
         return Dependencies(e);
     }
 
+    //TODO: update when dataDependenciesAttr contains list
+    Dependencies dependenciesUtils::fromAttribute(DataDependenciesAttr attr) { //TODO: add function that also does cast?
+        DataDependencyEnumAttr e = attr.getDataDepEnum();
+        return fromAttribute(e);
+    }
+
+    Dependencies dependenciesUtils::fromAttributeArray(mlir::ArrayAttr attr) { //TODO: add function that also does cast?
+        //auto attrs = attr.getValue();
+        //std::vector<mlir::Attribute> vec = std::vector(attrs.begin(), attrs.end());
+        std::vector<DataDependencyEnum> vec = {};
+        for (auto dataAttr : attr.getValue()) {
+            //vec.push_back(fromAttribute(dataAttr));
+            DataDependencyEnumAttr castAttr = llvm::dyn_cast<DataDependencyEnumAttr>(dataAttr);
+            vec.push_back(castAttr.getValue());
+        }
+        return Dependencies(vec);
+    }
+
     std::optional<Dependencies> dependenciesUtils::fromOp(mlir::Operation *op) {
         mlir::Attribute attr = op->getDiscardableAttr("synth.dataDep");
         if (!attr) {return std::nullopt;}
-        auto castAttr = llvm::dyn_cast<DataDependencyEnumAttr>(attr);
-        if (!castAttr) {return std::nullopt;}
-        return fromAttribute(castAttr);
+        auto castArrayAttr = llvm::dyn_cast<mlir::ArrayAttr>(attr); // TODO: this does not succeed, ik denk dat het komt doordat het een lijst is?
+        if (castArrayAttr) {return fromAttributeArray(castArrayAttr);}
+        auto castDataEnumAttr = llvm::dyn_cast<DataDependencyEnumAttr>(attr);
+        if (castDataEnumAttr) {return fromAttribute(castDataEnumAttr);}
+        auto castDataAttr = llvm::dyn_cast<DataDependenciesAttr>(attr);
+        if (castDataAttr) {return fromAttribute(castDataAttr);}
+        return std::nullopt;
     }
 
     // void markOp(Dependencies deps, mlir::Operation op) {
