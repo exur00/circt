@@ -29,8 +29,8 @@ namespace synth {
 #define GEN_PASS_DECL_SYNTHGENERATELEAKAGECONTRACT
 #include "circt/Dialect/Synth/SynthPasses.h.inc"
 
-std::unique_ptr<mlir::Pass> createGenerateLeakageContractPass(std::string processorModule = "simpleProcessor");
-std::unique_ptr<mlir::Pass> createGenerateLeakageContractPass(llvm::raw_ostream &os, std::string processorModule = "simpleProcessor");
+std::unique_ptr<mlir::Pass> createGenerateLeakageContractPass(std::string processorModule = "simpleProcessor", std::string instruction = "MUL");
+std::unique_ptr<mlir::Pass> createGenerateLeakageContractPass(llvm::raw_ostream &os, std::string processorModule = "simpleProcessor", std::string instruction = "MUL");
 
 #define GEN_PASS_REGISTRATION
 #include "circt/Dialect/Synth/SynthPasses.h.inc"

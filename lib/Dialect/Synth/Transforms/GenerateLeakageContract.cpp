@@ -40,8 +40,9 @@ using namespace synth;
 namespace {
 struct SynthLeakageContractPass : public circt::synth::impl::SynthGenerateLeakageContractBase<SynthLeakageContractPass> {
 public:
-  SynthLeakageContractPass(std::string processorModuleName, llvm::raw_ostream &os) : os(os) {
+  SynthLeakageContractPass(std::string processorModuleName, std::string instruction, llvm::raw_ostream &os) : os(os) {
     processorModule = processorModuleName;
+    instructionUnderVerification = instruction;
   }
   void runOnOperation() override;
 private:
@@ -61,7 +62,7 @@ private:
   //DenseMap<std::string, std::string> instructions;
   hw::HWModuleOp processorModuleOp;
   size_t nStages = 0;
-  std::string currentInstruction = "MUL"; //TODO: replace by some way to loop for all instructions
+  std::string instructionUnderVerification; //TODO: replace by some way to loop for all instructions
   fsm::HWInstanceOp currentFSM;
 
 public:
@@ -170,7 +171,7 @@ public:
         mlir::Region &guard = transitionOp.getGuard();
         auto returnOp = transitionOp.getGuardReturn();
         auto operands = returnOp.getOperation()->getOperands(); // always has 1 operand.
-        auto transitionDependencies = analyseDecisionFunction(currentInstruction, operands[0]);
+        auto transitionDependencies = analyseDecisionFunction(instructionUnderVerification, operands[0]);
         if (transitionDependencies == std::nullopt) {continue;}
         os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n";
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
@@ -337,10 +338,10 @@ void SynthLeakageContractPass::runOnOperation() {
 }
 
 // Constructor with custom ostream
-std::unique_ptr<mlir::Pass> circt::synth::createGenerateLeakageContractPass(llvm::raw_ostream &os, std::string processorModule) {
-  return std::make_unique<SynthLeakageContractPass>(processorModule, os);
+std::unique_ptr<mlir::Pass> circt::synth::createGenerateLeakageContractPass(llvm::raw_ostream &os, std::string processorModule, std::string instruction) {
+  return std::make_unique<SynthLeakageContractPass>(processorModule, instruction, os);
 }
 // Basic constructor
-std::unique_ptr<mlir::Pass> circt::synth::createGenerateLeakageContractPass(std::string processorModule) {
-  return std::make_unique<SynthLeakageContractPass>(processorModule, llvm::outs());
+std::unique_ptr<mlir::Pass> circt::synth::createGenerateLeakageContractPass(std::string processorModule, std::string instruction) {
+  return std::make_unique<SynthLeakageContractPass>(processorModule, instruction, llvm::outs());
 }

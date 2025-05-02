@@ -24,11 +24,14 @@ def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "hw::
     TODO
   }];
   let constructor = "circt::synth::createGenerateLeakageContractPass()";
-  let dependentDialects = ["circt::hw::HWDialect"];//, "circt::synth::SynthDialect"];
+  let dependentDialects = ["circt::hw::HWDialect"];//, "circt::synth::SynthDialect"]; //TODO: why does this cause error, and why does it work without?
     let options = [
     Option<"processorModule", "processor-module", "std::string",
-           /*default=*/"",
-           "Name of the processor module to analyze.">,
+           /*default=*/"\"test\"",
+           "Name of the processor module to analyse.">,
+    Option<"instruction", "instruction", "std::string",
+           /*default=*/"\"test\"",
+           "Name of the instruction to analyse.">,
   ];
 }
 
