@@ -93,7 +93,7 @@ public:
       if (!defOp) {
         defOp = traceBlockArgumentFSM(operand);
       }
-      Dependencies operandDeps = dataDependenciesRecursive(defOp);
+      Dependencies operandDeps = dataDependenciesRecursive(defOp); //TODO: loop busting needed here! (register a <- a + input) would infinitely evaluate a. 
       deps = Dependencies::leastUpperBound(deps, operandDeps);
     }
     markOperation(op, deps);
