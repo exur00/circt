@@ -32,6 +32,7 @@
 #include "circt/Dialect/HW/HWOps.h"
 #include "circt/Dialect/SV/SVAttributes.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
+#include "circt/Dialect/Synth/IR/DependencySemiLattice.h"
 #include "circt/Dialect/Synth/IR/SynthDialect.h"
 #include "circt/Support/Debug.h"
 #include "mlir/IR/Diagnostics.h"
@@ -394,13 +395,18 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
     op->setAttr("synth.attributeEnum", attr);
   }
   if (type.compare(OpBuilder(anno.getContext()).getStringAttr("dependant")) == 0) {
+    auto currentDeps = synth::dependenciesUtils::fromOp(op);
     synth::DataDependencyEnum depEnum;
-    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("data")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("register address")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
-    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("data value")) == 0) {depEnum = synth::DataDependencyEnum::DataValue;}
-    auto enumAttr = synth::DataDependencyEnumAttr::get(op->getContext(), depEnum);
-    attr = synth::DataDependenciesAttr::get(op->getContext(), enumAttr);
-    op->setAttr("synth.dataDep", attr);
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("register content")) == 0) {depEnum = synth::DataDependencyEnum::DataValue;}
+    synth::Dependencies newDeps = synth::Dependencies(depEnum);
+    if (currentDeps == std::nullopt) {
+      op->setAttr("synth.dataDep", synth::dependenciesUtils::asAttribute(op->getContext(), newDeps));
+    } else {
+      synth::Dependencies combinedDeps = synth::Dependencies::leastUpperBound(currentDeps.value(), newDeps);
+      op->setAttr("synth.dataDep", synth::dependenciesUtils::asAttribute(op->getContext(), combinedDeps));
+    }
   }
 
   // auto wait = OpBuilder(anno.getContext()).getStringAttr("wait");
