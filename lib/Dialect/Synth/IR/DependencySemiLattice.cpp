@@ -49,7 +49,7 @@ namespace synth {
         }
         mlir::ArrayRef<mlir::Attribute> arrRef = mlir::ArrayRef(attrs);
         auto arrayAttr = mlir::ArrayAttr::get(context, arrRef);
-        return arrayAttr
+        return arrayAttr;
     }
 
     Dependencies dependenciesUtils::fromAttribute(DataDependencyEnumAttr attr) { //TODO: add function that also does cast?
