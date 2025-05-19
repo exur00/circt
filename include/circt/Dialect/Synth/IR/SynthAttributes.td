@@ -63,10 +63,17 @@ def StageAttribute : AttrDef<SynthDialect, "Stage"> {
 def Data: I32EnumAttrCase<"Data", 1, "data_signal">;
 def Instruction: I32EnumAttrCase<"Instruction", 2, "instruction_signal">;
 def DataValue: I32EnumAttrCase<"DataValue", 3, "data_value">;
+def Rs1: I32EnumAttrCase<"Rs1", 4, "rs1">;
+def Rs1Value: I32EnumAttrCase<"Rs1Value", 5, "rs1_value">;
+def Rs2: I32EnumAttrCase<"Rs2", 6, "rs2">;
+def Rs2Value: I32EnumAttrCase<"Rs2Value", 7, "rs2_value">;
+def Immediate: I32EnumAttrCase<"Immediate", 8, "immediate">;
+def MemoryValue: I32EnumAttrCase<"MemoryValue", 9, "memory_value">;
+def Rd : I32EnumAttrCase<"Rd", 10, "rd">;
 //TODO: add differentiation between reg addresses and contents, same with memory
 // Constant synth enum values.
 def DataDependencyEnumAttrImpl: I32EnumAttr<"DataDependencyEnum", "data dependency enum",
-                                [Data, Instruction, DataValue]> {
+                                [Data, Instruction, DataValue, Rs1, Rs1Value, Rs2, Rs2Value, Immediate, MemoryValue, Rd]> {
   let genSpecializedAttr = 0;
 }
 

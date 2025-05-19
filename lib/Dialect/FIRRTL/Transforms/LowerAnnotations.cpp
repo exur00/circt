@@ -400,6 +400,13 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("register address")) == 0) {depEnum = synth::DataDependencyEnum::Data;}
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("instruction")) == 0) {depEnum = synth::DataDependencyEnum::Instruction;}
     if (on.compare(OpBuilder(anno.getContext()).getStringAttr("register content")) == 0) {depEnum = synth::DataDependencyEnum::DataValue;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("rs1")) == 0) {depEnum = synth::DataDependencyEnum::Rs1;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("rs1_value")) == 0) {depEnum = synth::DataDependencyEnum::Rs1Value;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("rs2")) == 0) {depEnum = synth::DataDependencyEnum::Rs2;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("rs2_value")) == 0) {depEnum = synth::DataDependencyEnum::Rs2Value;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("immediate")) == 0) {depEnum = synth::DataDependencyEnum::Immediate;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("memory_value")) == 0) {depEnum = synth::DataDependencyEnum::MemoryValue;}
+    if (on.compare(OpBuilder(anno.getContext()).getStringAttr("rd")) == 0) {depEnum = synth::DataDependencyEnum::Rd;}
     synth::Dependencies newDeps = synth::Dependencies(depEnum);
     if (currentDeps == std::nullopt) {
       op->setAttr("synth.dataDep", synth::dependenciesUtils::asAttribute(op->getContext(), newDeps));
