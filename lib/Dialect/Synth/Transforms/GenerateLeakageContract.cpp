@@ -51,6 +51,8 @@ private:
   const std::string pipelineAttributeName = "synth.attributeEnum"; //TODO: horen deze hier of bij hun definitie?
   const std::string dataDepAttributeName = "synth.dataDep";
   const std::string instrCaseName = "synth.instrCase";
+  const std::string stateSignalAttributeName = "synth.attackerObservableSignals";
+  const std::string stateWritesStateAttributeName = "synth.writesPersistentState";
 
   DenseMap<size_t, hw::HWModuleOp> stages;
   DenseMap<size_t, hw::InstanceOp> stageInstances;
@@ -64,6 +66,7 @@ private:
   size_t nStages = 0;
   std::string instructionUnderVerification; //TODO: replace by some way to loop for all instructions
   fsm::HWInstanceOp currentFSM;
+  hw::InstanceOp currentStageInstance;
 
 public:
 
@@ -75,6 +78,16 @@ public:
     auto inputNumString = str.substr(str.find_last_not_of("0123456789"));
     auto inputNum = std::stoi(inputNumString);
     return currentFSM.getOperation()->getOperand(inputNum).getDefiningOp();
+  }
+
+  mlir::Operation *traceBlockArgumentStage(mlir::Value val) {
+    std::string str; //TODO: this is very dirty, but seemingly the only way? if operand is a block value of the fsm, this will print "<block argument> of type '[TYPE]' at index: x"
+    // where x is the index of the matching input to the fsm::HWInstanceOp
+    llvm::raw_string_ostream stream = llvm::raw_string_ostream(str);
+    val.print(stream);
+    auto inputNumString = str.substr(str.find_last_not_of("0123456789"));
+    auto inputNum = std::stoi(inputNumString);
+    return currentStageInstance.getOperation()->getOperand(inputNum).getDefiningOp();
   }
 
   Dependencies dataDependenciesRecursive(mlir::Operation *op) {
@@ -91,8 +104,17 @@ public:
     for (Value operand : op->getOperands()) {
       auto defOp = operand.getDefiningOp();
       if (!defOp) {
-        defOp = traceBlockArgumentFSM(operand);
+        auto tmp = operand.getParentBlock()->getParentOp();
+        auto tmp2 = tmp;
+        if (isa<hw::HWModuleOp>(tmp)) {
+          defOp = traceBlockArgumentStage(operand);
+        } else if (isa<fsm::MachineOp>(tmp)) {
+          defOp = traceBlockArgumentFSM(operand);
+        } else {
+          os << "error tracing value dependencies\n"; //TODO: error
+        }
       }
+
       Dependencies operandDeps = dataDependenciesRecursive(defOp); //TODO: loop busting needed here! (register a <- a + input) would infinitely evaluate a. 
       deps = Dependencies::leastUpperBound(deps, operandDeps);
     }
@@ -134,6 +156,40 @@ public:
       });
   }
 
+  std::string analyseStateAttributes(fsm::StateOp state) {
+    std::string result = "";
+    // Print attacker observable signals marked in the state
+    auto stateSignalsAttr = state.getOperation()->getDiscardableAttr(stateSignalAttributeName);
+    if (stateSignalsAttr) {
+      auto castStateSignalAttr = dyn_cast<mlir::ArrayAttr>(stateSignalsAttr);
+      if (!castStateSignalAttr) {
+        os << "error!, invalid state signal annotation\n";
+        return "error!";
+      }
+      for (auto attr : castStateSignalAttr) {
+        auto attrString = dyn_cast<mlir::StringAttr>(attr);
+        os << "attacker observable signal emmited: " << attrString.getValue().str() << "\n";
+        result += "attacker observable signal emmited: " + attrString.getValue().str() + "\n";
+      }
+    }
+
+    // Print written stateful components marked in the state
+    auto stateWritesAttr = state.getOperation()->getDiscardableAttr(stateWritesStateAttributeName);
+    if (stateWritesAttr) {
+      auto castStateWritesAttr = dyn_cast<mlir::ArrayAttr>(stateWritesAttr);
+      if (!castStateWritesAttr) {
+        os << "error!, invalid state writes state annotation\n";
+        return "error!";
+      }
+      for (auto attr : castStateWritesAttr) {
+        auto attrString = dyn_cast<mlir::StringAttr>(attr);
+        os << "stateful component written: " << attrString.getValue().str() << "\n";
+        result += "stateful component written: " + attrString.getValue().str() + "\n";
+      }
+    }
+    return result;
+  }
+
   std::string analyseStage(size_t stageNumber) {
     os << "analyzing stage " << stageNumber << "\n";
 
@@ -142,6 +198,7 @@ public:
       return std::to_string(stageNumber) + " is combinational";
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
+    currentStageInstance = stageInstances[stageNumber];
     stage.walk(
       [&] (fsm::HWInstanceOp instance) {
         currentFSM = instance;
@@ -162,7 +219,8 @@ public:
       statesToCheck.pop_back(); // remove last state from list, we will be checking now.
       checkedStates.push_back(currentState); // mark this state is checked
       os << "currently analyzing state: " << currentState.getName() << "\n";
-
+      analyseStateAttributes(currentState);
+      
       mlir::Region &transitions = currentState.getTransitions();
       for (auto &transition : transitions.front().getOperations()) {
         fsm::TransitionOp transitionOp = dyn_cast<fsm::TransitionOp>(transition);
@@ -330,7 +388,7 @@ void SynthLeakageContractPass::runOnOperation() {
   registerInstances();
   countAllPipelineRegisters();
 
-  propagateRegisterAnnotations();
+  //propagateRegisterAnnotations();
 
 //  if (!testPipelineValid()) {return;} //remove?
     
