@@ -379,6 +379,7 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
   auto on = anno.getAs<StringAttr>("on");
   auto from = anno.getAs<StringAttr>("from");
   auto to = anno.getAs<StringAttr>("to");
+  auto name = anno.getAs<StringAttr>("name");
   
   mlir::Attribute attr;
   if (type == nullptr) {return error() << "annotation did not include type field";}
@@ -414,6 +415,10 @@ static LogicalResult applySynthAnnotation(const AnnoPathValue &target,
       synth::Dependencies combinedDeps = synth::Dependencies::leastUpperBound(currentDeps.value(), newDeps);
       op->setAttr("synth.dataDep", synth::dependenciesUtils::asAttribute(op->getContext(), combinedDeps));
     }
+  
+  }
+  if (type.compare(OpBuilder(anno.getContext()).getStringAttr("persistentState")) == 0){
+    op->setAttr("synth.persistentState", StringAttr::get(op->getContext(), name.getValue()));
   }
 
   // auto wait = OpBuilder(anno.getContext()).getStringAttr("wait");

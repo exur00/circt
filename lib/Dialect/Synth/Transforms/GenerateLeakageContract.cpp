@@ -48,11 +48,12 @@ public:
 private:
   raw_ostream &os;
 
-  const std::string pipelineAttributeName = "synth.attributeEnum"; //TODO: horen deze hier of bij hun definitie?
+  const std::string pipelineAttributeName = "synth.attributeEnum"; //TODO: should be moved to somewhere in the synth dialect.
   const std::string dataDepAttributeName = "synth.dataDep";
   const std::string instrCaseName = "synth.instrCase";
   const std::string stateSignalAttributeName = "synth.attackerObservableSignals";
   const std::string stateWritesStateAttributeName = "synth.writesPersistentState";
+  const std::string persistentStateAttributeName = "synth.persistentState";
 
   DenseMap<size_t, hw::HWModuleOp> stages;
   DenseMap<size_t, hw::InstanceOp> stageInstances;
@@ -100,6 +101,10 @@ public:
     if (attributeDeps != std::nullopt) {
       return attributeDeps.value();
     }
+    if (op->getDiscardableAttr(persistentStateAttributeName)) {
+      return(deps);
+    }
+    if (isa<fsm::InstanceOp>(*op)) {return deps;}
     // TODO: add check that if is an unmarked module input / port, it is independent // really? is that safe?
     for (Value operand : op->getOperands()) {
       auto defOp = operand.getDefiningOp();
@@ -328,6 +333,7 @@ public:
     }
   }
 
+  //TODO: deprecate
   void propagateRegisterAnnotations() {
     // First instance has no preceding pipeline register, instead read wires from instruction memory should be marked
     for (size_t stage = 2; stage <= nStages; stage++) {

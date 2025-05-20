@@ -2940,11 +2940,13 @@ LogicalResult FIRRTLLowering::visitDecl(WireOp op) {
   if (auto svAttrs = sv::getSVAttributes(op))
     sv::setSVAttributes(wire, svAttrs);
   
-  // Move Synth attributes.
+  // Move Synth attributes. //TODO: make this more flexible, list of arguments in the synth dialect that is checked? listDialectAttributes even better?
   if (auto synthAttr = op->getAttr("synth.attributeEnum"))
     wire->setAttr("synth.attributeEnum", synthAttr);
   if (auto dataDepAttr = op->getAttr("synth.dataDep"))
     wire->setAttr("synth.dataDep", dataDepAttr);
+  if (auto attr = op->getAttr("synth.persistentState"))
+    wire->setAttr("synth.persistentState", attr);
 
   return setLowering(op.getResult(), wire);
 }
@@ -3037,6 +3039,8 @@ LogicalResult FIRRTLLowering::visitDecl(RegOp op) {
     reg->setAttr("synth.attributeEnum", synthAttr);
   if (auto dataDepAttr = op->getAttr("synth.dataDep"))
     reg->setAttr("synth.dataDep", dataDepAttr);
+  if (auto attr = op->getAttr("synth.persistentState"))
+    reg->setAttr("synth.persistentState", attr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
@@ -3084,6 +3088,8 @@ LogicalResult FIRRTLLowering::visitDecl(RegResetOp op) {
     reg->setAttr("synth.attributeEnum", synthAttr);
   if (auto dataDepAttr = op->getAttr("synth.dataDep"))
     reg->setAttr("synth.dataDep", dataDepAttr);
+  if (auto attr = op->getAttr("synth.persistentState"))
+    reg->setAttr("synth.persistentState", attr);
 
   inputEdge.setValue(reg);
   (void)setLowering(op.getResult(), reg);
