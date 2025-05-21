@@ -42,7 +42,7 @@ struct SynthLeakageContractPass : public circt::synth::impl::SynthGenerateLeakag
 public:
   SynthLeakageContractPass(std::string processorModuleName, std::string instruction, llvm::raw_ostream &os) : os(os) {
     processorModule = processorModuleName;
-    instructionUnderVerification = instruction;
+    instruction = instruction;
   }
   void runOnOperation() override;
 private:
@@ -66,6 +66,7 @@ private:
   hw::HWModuleOp processorModuleOp;
   size_t nStages = 0;
   std::string instructionUnderVerification; //TODO: replace by some way to loop for all instructions
+  std::string processorModuleName;
   fsm::HWInstanceOp currentFSM;
   hw::InstanceOp currentStageInstance;
 
@@ -143,7 +144,7 @@ public:
   }
 
   void registerInstances() {
-    getOperation().getOperation()->getParentOp()->walk(
+    getOperation().walk(
       [&](hw::InstanceOp instance) {
         Operation *module;
         mlir::FlatSymbolRefAttr moduleRef = instance.getModuleNameAttr();
@@ -269,7 +270,7 @@ public:
   void countAllPipelineRegisters() {
     initializePipelineRegisters();
 
-    getOperation().walk(
+    processorModuleOp.walk(
       [&](seq::FirRegOp reg) {
         auto attr = getStageAttr(reg);
         if (attr != std::nullopt) {
@@ -389,7 +390,19 @@ public:
 } // namespace  
 
 void SynthLeakageContractPass::runOnOperation() {
-  if (getOperation().getName().str() != processorModule) {return;} // only keep the pass that runs on the processor operation
+  instructionUnderVerification = instruction;
+  processorModuleName = processorModule;
+  //if (getOperation().getName().str() != processorModule) {return;} // only keep the pass that runs on the processor operation
+
+  // find the processor module
+  getOperation().walk(
+    [&](hw::HWModuleOp m){
+      if (m.getName().str() == processorModuleName) {processorModuleOp = m;}
+    });
+  if (!processorModuleOp) {
+    os << "error: no module found matching the expected name\n";
+    return;
+  }
 
   registerInstances();
   countAllPipelineRegisters();

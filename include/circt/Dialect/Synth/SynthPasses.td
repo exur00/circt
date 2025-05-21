@@ -18,7 +18,8 @@ include "mlir/Pass/PassBase.td"
 /**
  * 
  */
-def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "hw::HWModuleOp"> {
+//def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "hw::HWModuleOp"> {
+def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "ModuleOp"> {
   let summary = "TODO";
   let description = [{
     TODO
@@ -27,10 +28,10 @@ def SynthGenerateLeakageContract : Pass<"synth-generate-leakage-contract", "hw::
   let dependentDialects = ["circt::hw::HWDialect"];//, "circt::synth::SynthDialect"]; //TODO: why does this cause error, and why does it work without?
     let options = [
     Option<"processorModule", "processor-module", "std::string",
-           /*default=*/"\"test\"",
+           /*default=*/"\"simpleProcessor\"",
            "Name of the processor module to analyse.">,
     Option<"instruction", "instruction", "std::string",
-           /*default=*/"\"test\"",
+           /*default=*/"\"ADD\"",
            "Name of the instruction to analyse.">,
   ];
 }
