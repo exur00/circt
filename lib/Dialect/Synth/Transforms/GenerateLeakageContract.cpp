@@ -15,6 +15,7 @@
 #include "circt/Dialect/Synth/SynthPasses.h"
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
 #include "circt/Dialect/Synth/IR/DependencySemiLattice.h"
+#include "circt/Dialect/Synth/IR/IntermediateGraph.h"
 #include "circt/Dialect/HW/HWTypes.h"
 #include "circt/Dialect/HW/HWInstanceImplementation.h"
 #include "circt/Dialect/FSM/FSMOps.h"
@@ -205,6 +206,7 @@ public:
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
     currentStageInstance = stageInstances[stageNumber];
+    IntermediateGraph graph = IntermediateGraph("initial");
     stage.walk(
       [&] (fsm::HWInstanceOp instance) {
         currentFSM = instance;
@@ -232,6 +234,8 @@ public:
         fsm::TransitionOp transitionOp = dyn_cast<fsm::TransitionOp>(transition);
         assert(transitionOp && "expected TransitionOp");
         if (!transitionOp.hasGuard()) {
+          synth::Dependencies emptyDep = synth::Dependencies(); 
+          graph.addTransition(currentState.getName().str(), transitionOp.getNextState().str(), emptyDep);
           os << "\ttransition to: " << transitionOp.getNextState() << " without guard\n";
           continue;
         }
@@ -240,6 +244,7 @@ public:
         auto operands = returnOp.getOperation()->getOperands(); // always has 1 operand.
         auto transitionDependencies = analyseDecisionFunction(instructionUnderVerification, operands[0]);
         if (transitionDependencies == std::nullopt) {continue;}
+        graph.addTransition(currentState.getName().str(), transitionOp.getNextState().str(), transitionDependencies.value());
         os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n";
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
         if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
@@ -248,7 +253,9 @@ public:
       }
     }
     os << "finished stage " + std::to_string(stageNumber) + " analysis\n";
-    return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
+    os << graph.lubTransitionDependencies().toString() << "\n";
+    return graph.toString();
+    //return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
   }
 
   void countModule(hw::HWModuleOp module) {

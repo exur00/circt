@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
 #include "circt/Dialect/Synth/IR/SynthAttributes.h"
 #include "mlir/IR/Operation.h"
 
@@ -18,7 +19,7 @@ namespace synth {
         Dependencies(synth::DataDependencyEnum dependency);
         Dependencies(std::vector<synth::DataDependencyEnum> &dependencies);
         Dependencies(std::set<synth::DataDependencyEnum> dependencies);
-        std::string toString();
+        std::string toString() const;
         synth::Dependencies static leastUpperBound(Dependencies a, Dependencies b); //TODO: make static!
     };
 

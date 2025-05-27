@@ -4,6 +4,7 @@ add_circt_dialect_library(CIRCTSynth
   SynthTypes.cpp
   SynthAttributes.cpp
   DependencySemiLattice.cpp
+  IntermediateGraph.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${CIRCT_MAIN_INCLUDE_DIR}/circt/Dialect/Synth/IR

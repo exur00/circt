@@ -27,7 +27,7 @@ namespace synth {
         this->dependencies = {};
         this->dependencies.insert(dependencies.begin(), dependencies.end());
     }
-    std::string Dependencies::toString(){
+    std::string Dependencies::toString() const{
         std::string result = "[";
         for (synth::DataDependencyEnum dep: dependencies) {
             result += stringifyDataDependencyEnum(dep).str();
