@@ -94,9 +94,6 @@ public:
   }
 
   Dependencies dataDependenciesRecursive(mlir::Operation *op) {
-    if (op->getName().getStringRef().str() == "hw.instance") {
-      os << "test";
-    }
     Dependencies deps = Dependencies(); // the constant dependencies
     if (isa<hw::ConstantOp>(*op)) {return deps;}
     auto attributeDeps = dependenciesUtils::fromOp(op); // if it is already marked, return that
@@ -327,9 +324,6 @@ public:
       currentDeps = currentDepsOpt.value();
     }
     Dependencies newDeps = Dependencies::leastUpperBound(currentDeps, deps);
-    if (user->getName().getStringRef().str() == "hw.instance") {
-      os << "test";
-    }
     auto attr = dependenciesUtils::asAttribute(user->getContext(), newDeps);
     user->setDiscardableAttr(dataDepAttributeName, attr);
   }
