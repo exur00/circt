@@ -33,8 +33,12 @@ public:
     std::vector<std::shared_ptr<Transition>> getIncomingTransitions() const;
     std::vector<std::shared_ptr<Transition>> getOutgoingTransitions() const;
 
+    void markWritesState();
+    bool isUnsafe();
+
 private:
     const std::string name;
+    bool writesPersistentState = false;
     std::set<std::shared_ptr<Transition>> incomingTransitions;
     std::set<std::shared_ptr<Transition>> outgoingTransitions;
 };
@@ -50,6 +54,7 @@ public:
     std::shared_ptr<Node> getNode(const std::string name) const;
     std::string toString() const;
     Dependencies lubTransitionDependencies();
+    bool isUnsafe();
 
 private:
     std::shared_ptr<Node> getOrAddNode(const std::string name);

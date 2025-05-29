@@ -29,6 +29,13 @@ std::vector<std::shared_ptr<Transition>> Node::getOutgoingTransitions() const {
     return result;
 }
 
+void Node::markWritesState() {
+    writesPersistentState = true;
+}
+bool Node::isUnsafe() {
+    return writesPersistentState;
+}
+
 //IntermediateGraph::IntermediateGraph(const std::string& initialNode) : first(this->getOrAddNode(initialNode)) {};
  IntermediateGraph::IntermediateGraph(const std::string initialNode) {
      std::shared_ptr<Node> n = std::make_shared<Node>(Node(initialNode));
@@ -56,7 +63,6 @@ std::string IntermediateGraph::toString() const {
         result += t.get()->toString() + "\n";
     }
     return result;
-    //return "TODO: IMPLEMENT";//TODO: implement
 }
 Dependencies IntermediateGraph::lubTransitionDependencies() {
     Dependencies result = Dependencies();
@@ -64,6 +70,13 @@ Dependencies IntermediateGraph::lubTransitionDependencies() {
         result = Dependencies::leastUpperBound(result, t.get()->getDependencies());
     }
     return result;
+}
+bool IntermediateGraph::isUnsafe() {
+    for (auto pair : nodes) {
+        if (pair.second.get()->isUnsafe())
+            return true;
+    }
+    return false;
 }
 
 std::shared_ptr<Node> IntermediateGraph::getOrAddNode(const std::string name) {

@@ -103,13 +103,11 @@ public:
     if (op->getDiscardableAttr(persistentStateAttributeName)) {
       return(deps);
     }
-    if (isa<fsm::InstanceOp>(*op)) {return deps;}
-    // TODO: add check that if is an unmarked module input / port, it is independent // really? is that safe?
+    //if (isa<fsm::InstanceOp>(*op)) {return deps;} // TODO: this seems unsafe
     for (Value operand : op->getOperands()) {
       auto defOp = operand.getDefiningOp();
       if (!defOp) {
         auto tmp = operand.getParentBlock()->getParentOp();
-        auto tmp2 = tmp;
         if (isa<hw::HWModuleOp>(tmp)) {
           defOp = traceBlockArgumentStage(operand);
         } else if (isa<fsm::MachineOp>(tmp)) {
@@ -154,56 +152,62 @@ public:
         if (attr != std::nullopt) {
           size_t fromStage = attr.value().getFromStage();
           stageInstances[fromStage] = instance;
-          os << "registered stageInstance for module " << moduleOp.getModuleName().str() << " as stage number " << std::to_string(fromStage) << "\n";
+          //os << "registered stageInstance for module " << moduleOp.getModuleName().str() << " as stage number " << std::to_string(fromStage) << "\n";
           countModule(moduleOp);
         }
       });
   }
 
-  std::string analyseStateAttributes(fsm::StateOp state) {
+  //std::string analyseStateAttributes(fsm::StateOp state) {
+  std::pair<std::vector<std::string>, bool> analyseStateAttributes(fsm::StateOp state) {
     std::string result = "";
+    std::vector<std::string> signals = {};
     // Print attacker observable signals marked in the state
     auto stateSignalsAttr = state.getOperation()->getDiscardableAttr(stateSignalAttributeName);
     if (stateSignalsAttr) {
       auto castStateSignalAttr = dyn_cast<mlir::ArrayAttr>(stateSignalsAttr);
       if (!castStateSignalAttr) {
         os << "error!, invalid state signal annotation\n";
-        return "error!";
+        //return;// "error!";
       }
       for (auto attr : castStateSignalAttr) {
         auto attrString = dyn_cast<mlir::StringAttr>(attr);
-        os << "attacker observable signal emmited: " << attrString.getValue().str() << "\n";
+        //os << "attacker observable signal emmited: " << attrString.getValue().str() << "\n";
         result += "attacker observable signal emmited: " + attrString.getValue().str() + "\n";
+        signals.push_back(attrString.getValue().str());
       }
     }
 
     // Print written stateful components marked in the state
     auto stateWritesAttr = state.getOperation()->getDiscardableAttr(stateWritesStateAttributeName);
+    bool stateWritten = false;
     if (stateWritesAttr) {
       auto castStateWritesAttr = dyn_cast<mlir::ArrayAttr>(stateWritesAttr);
       if (!castStateWritesAttr) {
         os << "error!, invalid state writes state annotation\n";
-        return "error!";
+        //return ;// "error!";
       }
       for (auto attr : castStateWritesAttr) {
         auto attrString = dyn_cast<mlir::StringAttr>(attr);
-        os << "stateful component written: " << attrString.getValue().str() << "\n";
+        //os << "stateful component written: " << attrString.getValue().str() << "\n";
         result += "stateful component written: " + attrString.getValue().str() + "\n";
+        stateWritten = true;
       }
     }
-    return result;
+    return {signals, stateWritten};
   }
 
-  std::string analyseStage(size_t stageNumber) {
-    os << "analyzing stage " << stageNumber << "\n";
+  std::optional<IntermediateGraph> analyseStage(size_t stageNumber) {
+    //os << "analyzing stage " << stageNumber << "\n";
 
     if (stageIsCombinational(stageNumber)) {
-      os << "is combinational\n";
-      return std::to_string(stageNumber) + " is combinational";
+      //os << "is combinational\n";
+      //return std::to_string(stageNumber) + " is combinational";
+      return std::nullopt;
     }
     hw::HWModuleOp stage = stages.at(stageNumber);
     currentStageInstance = stageInstances[stageNumber];
-    IntermediateGraph graph = IntermediateGraph("initial");
+    IntermediateGraph graph = IntermediateGraph("READY");
     stage.walk(
       [&] (fsm::HWInstanceOp instance) {
         currentFSM = instance;
@@ -212,7 +216,8 @@ public:
     fsm::MachineOp fsm = currentFSM.getMachineOp();
     if (!fsm) {
       os << "error, fsm in stage " << stageNumber << "is invalid or missing";
-      return "error, fsm in stage " + std::to_string(stageNumber) + "is invalid or missing";
+      //return "error, fsm in stage " + std::to_string(stageNumber) + "is invalid or missing";
+      return std::nullopt;
     }
 
     fsm::StateOp initialState = fsm.getInitialStateOp();
@@ -223,8 +228,11 @@ public:
       fsm::StateOp currentState = statesToCheck.back();
       statesToCheck.pop_back(); // remove last state from list, we will be checking now.
       checkedStates.push_back(currentState); // mark this state is checked
-      os << "currently analyzing state: " << currentState.getName() << "\n";
-      analyseStateAttributes(currentState);
+      //os << "currently analyzing state: " << currentState.getName() << "\n";
+      auto p = analyseStateAttributes(currentState);
+      if (p.second) {
+        graph.getNode(currentState.getName().str()).get()->markWritesState();
+      }
       
       mlir::Region &transitions = currentState.getTransitions();
       for (auto &transition : transitions.front().getOperations()) {
@@ -233,7 +241,7 @@ public:
         if (!transitionOp.hasGuard()) {
           synth::Dependencies emptyDep = synth::Dependencies(); 
           graph.addTransition(currentState.getName().str(), transitionOp.getNextState().str(), emptyDep);
-          os << "\ttransition to: " << transitionOp.getNextState() << " without guard\n";
+          //os << "\ttransition to: " << transitionOp.getNextState() << " without guard\n";
           continue;
         }
         mlir::Region &guard = transitionOp.getGuard();
@@ -242,17 +250,17 @@ public:
         auto transitionDependencies = analyseDecisionFunction(instructionUnderVerification, operands[0]);
         if (transitionDependencies == std::nullopt) {continue;}
         graph.addTransition(currentState.getName().str(), transitionOp.getNextState().str(), transitionDependencies.value());
-        os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n";
+        //os << "\ttransition to: " << transitionOp.getNextState() << " depends on: " << transitionDependencies.value().toString() << "\n";
         auto nextState = transitionOp.getNextStateOp(); // = destination of this transition
         if (find(checkedStates.begin(), checkedStates.end(), nextState) == checkedStates.end()) { // if next state not already checked: add to check
           statesToCheck.push_back(nextState);
         }
       }
     }
-    os << "finished stage " + std::to_string(stageNumber) + " analysis\n";
-    os << graph.lubTransitionDependencies().toString() << "\n";
-    return graph.toString();
-    //return "placeholder analysis stage " + std::to_string(stageNumber) + stages.find(stageNumber)->second.getName().str() + "\n"; //TODO: replace
+    //os << "finished stage " + std::to_string(stageNumber) + " analysis\n";
+    //os << graph.lubTransitionDependencies().toString() << "\n";
+    //return graph.toString();
+    return std::optional<IntermediateGraph>(graph);
   }
 
   void countModule(hw::HWModuleOp module) {
@@ -261,10 +269,10 @@ public:
       size_t fromStage = attr.value().getFromStage();
         stages[fromStage] = module;
         if (fromStage > nStages) {nStages = fromStage;}
-      os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
+      //os << "registered module " << module.getName().str() << " as stage " << std::to_string(fromStage) << "\n";
       return;
     }
-    os << "registered module " << module.getName().str() << " is not a stage" << "\n";
+    //os << "registered module " << module.getName().str() << " is not a stage" << "\n";
   }
 
   void addPipelineRegister(seq::FirRegOp reg, size_t fromStage, synth::SynthEnumConst enumValue) {
@@ -345,7 +353,7 @@ public:
       auto instanceOperands = instance.getOperands();
       auto argnames = instance.getArgNames();
       auto modArgNames = ArrayAttr::get(instance->getContext(), module.getInputNames());
-	  os << "propagating register annotations for stage " << std::to_string(stage) << "\n";
+	  //os << "propagating register annotations for stage " << std::to_string(stage) << "\n";
       for (size_t i = 0; i < instanceOperands.size(); i++) {
         auto operand = instanceOperands[i]; // input of instanceOp
         auto operandName = dyn_cast<StringAttr>(argnames[i]).str();
@@ -414,11 +422,23 @@ void SynthLeakageContractPass::runOnOperation() {
     
   // now we have identified all pipeline stages and pipeline registers, we can analyse them 1 at a time
   std::string analysis = "";
+  Dependencies deps = Dependencies();
+  os << "observations: ";
+
   for (size_t s = 1; s <= nStages; s++) {
-    analysis += analyseStage(s);
+    auto opt = analyseStage(s);
+    if (!opt.has_value()) {continue;} // is as simple state
+    IntermediateGraph g = opt.value();
+    analysis += g.toString();
     analysis += "\n";
+    if (g.isUnsafe()) {
+      os << instructionUnderVerification << " is unsafe\n";
+      return;
+    }
+    deps = Dependencies::leastUpperBound(deps, g.lubTransitionDependencies());
   }
-  os << "\n\nAnalysis results:\n" << analysis;
+  os << instructionUnderVerification << " : " << instructionUnderVerification << ", " << deps.toString() << "\n";
+  //os << "\n\nAnalysis results:\n" << analysis;
 }
 
 // Constructor with custom ostream
