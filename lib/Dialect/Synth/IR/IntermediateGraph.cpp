@@ -11,8 +11,8 @@ std::string Transition::toString() const {
     return "from " + origin.get()->getName() + " to " + destination.get()->getName() + " depending on " + deps.toString();
 }
 
-Node::Node(const std::string& name) : name(name) {};
-const std::string& Node::getName() const {return name;}
+Node::Node(const std::string name) : name(name) {};
+const std::string Node::getName() const {return name;}
 void Node::addIncomingTransition(std::shared_ptr<Transition> transition) {
     incomingTransitions.insert(transition);
 }
@@ -30,12 +30,12 @@ std::vector<std::shared_ptr<Transition>> Node::getOutgoingTransitions() const {
 }
 
 //IntermediateGraph::IntermediateGraph(const std::string& initialNode) : first(this->getOrAddNode(initialNode)) {};
- IntermediateGraph::IntermediateGraph(const std::string& initialNode) {
+ IntermediateGraph::IntermediateGraph(const std::string initialNode) {
      std::shared_ptr<Node> n = std::make_shared<Node>(Node(initialNode));
      nodes.insert({initialNode, n});
      first = n;
  };
-void IntermediateGraph::addTransition(const std::string& from, const std::string& to, Dependencies deps) {
+void IntermediateGraph::addTransition(const std::string from, const std::string to, Dependencies deps) {
     std::shared_ptr<Node> fromNode = this->getOrAddNode(from);
     std::shared_ptr<Node> toNode = this->getOrAddNode(to);
     std::shared_ptr<Transition> t = std::make_shared<Transition>(Transition(fromNode, toNode, deps));
@@ -47,7 +47,7 @@ std::vector<std::shared_ptr<Transition>> IntermediateGraph::getTransitions() con
     std::vector<std::shared_ptr<Transition>> result(transitions.begin(), transitions.end());
     return result;
 }
-std::shared_ptr<Node> IntermediateGraph::getNode(const std::string& name) const {
+std::shared_ptr<Node> IntermediateGraph::getNode(const std::string name) const {
     return nodes.at(name);
 }
 std::string IntermediateGraph::toString() const {
@@ -66,7 +66,7 @@ Dependencies IntermediateGraph::lubTransitionDependencies() {
     return result;
 }
 
-std::shared_ptr<Node> IntermediateGraph::getOrAddNode(const std::string& name) {
+std::shared_ptr<Node> IntermediateGraph::getOrAddNode(const std::string name) {
     auto n = nodes.find(name);
     if (n != nodes.end()) {
         return n->second;

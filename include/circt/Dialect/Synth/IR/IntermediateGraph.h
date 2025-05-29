@@ -23,9 +23,9 @@ private:
 
 class Node {
 public:
-    Node(const std::string& name);
+    Node(const std::string name);
 
-    const std::string& getName() const;
+    const std::string getName() const;
 
     void addIncomingTransition(std::shared_ptr<Transition> transition);
     void addOutgoingTransition(std::shared_ptr<Transition> transition);
@@ -34,25 +34,25 @@ public:
     std::vector<std::shared_ptr<Transition>> getOutgoingTransitions() const;
 
 private:
-    const std::string& name;
+    const std::string name;
     std::set<std::shared_ptr<Transition>> incomingTransitions;
     std::set<std::shared_ptr<Transition>> outgoingTransitions;
 };
 
 class IntermediateGraph {
 public:
-    IntermediateGraph(const std::string& initialNode);
+    IntermediateGraph(const std::string initialNode);
 
-    void addTransition(const std::string& from, const std::string& to, Dependencies deps);
+    void addTransition(const std::string from, const std::string to, Dependencies deps);
 
     std::shared_ptr<Node> getFirstNode() const;
     std::vector<std::shared_ptr<Transition>> getTransitions() const;
-    std::shared_ptr<Node> getNode(const std::string& name) const;
+    std::shared_ptr<Node> getNode(const std::string name) const;
     std::string toString() const;
     Dependencies lubTransitionDependencies();
 
 private:
-    std::shared_ptr<Node> getOrAddNode(const std::string& name);
+    std::shared_ptr<Node> getOrAddNode(const std::string name);
 
     std::shared_ptr<Node> first;
     std::set<std::shared_ptr<Transition>> transitions;
