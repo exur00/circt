@@ -432,7 +432,7 @@ void SynthLeakageContractPass::runOnOperation() {
     analysis += g.toString();
     analysis += "\n";
     if (g.isUnsafe()) {
-      os << instructionUnderVerification << " is unsafe\n";
+      os << instructionUnderVerification << " : unsafe\n";
       return;
     }
     deps = Dependencies::leastUpperBound(deps, g.lubTransitionDependencies());
